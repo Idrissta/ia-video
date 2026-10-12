@@ -51,6 +51,13 @@ jobs:
       - name: Compiler l'APK de production
         run: ./gradlew --no-daemon assembleRelease
 
+      - name: Vérifier la signature et le manifeste
+        run: |
+          BT="$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)"
+          APK=app/build/outputs/apk/release/app-release.apk
+          "$BT/apksigner" verify --verbose --print-certs "$APK"
+          "$BT/aapt2" dump badging "$APK" | grep -E "^(package|sdkVersion|targetSdkVersion|application-label|launchable-activity)"
+
       - name: Préparer le fichier
         run: |
           mkdir -p dist
