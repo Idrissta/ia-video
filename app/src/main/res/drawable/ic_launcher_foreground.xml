@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Axes -->
+    <path
+        android:pathData="M25,54H83M54,25V83"
+        android:strokeWidth="2"
+        android:strokeAlpha="0.32"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeLineCap="round" />
+    <!-- Courbe -->
+    <path
+        android:pathData="M28,54c8,-26 16,-26 26,0s18,26 26,0"
+        android:strokeWidth="6.4"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeLineCap="round" />
+    <!-- Point de suivi -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M33.3,34.6a7,7 0,1 0,14 0a7,7 0,1 0,-14 0z" />
+    <path
+        android:fillColor="#FF7C5CF6"
+        android:pathData="M37,34.6a3.3,3.3 0,1 0,6.6 0a3.3,3.3 0,1 0,-6.6 0z" />
+</vector>

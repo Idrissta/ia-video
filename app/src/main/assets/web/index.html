@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="fr" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="color-scheme" content="dark light">
+  <meta name="theme-color" content="#06070d">
+  <title>Nova Graph</title>
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div id="app" class="tab-graph">
+  <canvas id="graph" aria-label="Graphe"></canvas>
+
+  <header class="topbar">
+    <div class="brand" aria-label="Nova Graph">
+      <svg class="logo" viewBox="0 0 40 40" aria-hidden="true">
+        <defs>
+          <linearGradient id="lg" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#8b5cf6"/><stop offset="1" stop-color="#22d3ee"/>
+          </linearGradient>
+        </defs>
+        <rect width="40" height="40" rx="12" fill="url(#lg)"/>
+        <path d="M7 25c4-13 8-13 13 0s9 13 13 0" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round"/>
+        <circle cx="13.5" cy="15.4" r="3.6" fill="#fff"/><circle cx="13.5" cy="15.4" r="1.7" fill="#7c5cf6"/>
+      </svg>
+    </div>
+    <nav class="tabs glass" role="tablist" style="--i:0">
+      <span class="tab-pill" aria-hidden="true"></span>
+      <button class="tab on" type="button" role="tab" data-tab="graph">Graphe</button>
+      <button class="tab" type="button" role="tab" data-tab="calc">Calcul</button>
+      <button class="tab" type="button" role="tab" data-tab="table">Table</button>
+    </nav>
+    <button class="icon-btn glass" type="button" id="btn-settings" aria-label="Réglages">
+      <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2.2"/><circle cx="10" cy="17" r="2.2"/></svg>
+    </button>
+  </header>
+
+  <div class="fabs" id="fabs">
+    <button class="fab glass" type="button" data-zoom="in" aria-label="Zoom avant">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+    </button>
+    <button class="fab glass" type="button" data-zoom="out" aria-label="Zoom arrière">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14"/></svg>
+    </button>
+    <button class="fab glass" type="button" data-zoom="home" aria-label="Vue par défaut">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v4M12 17.5v4M2.5 12h4M17.5 12h4"/></svg>
+    </button>
+  </div>
+
+  <section class="sheet glass" id="sheet" aria-label="Expressions">
+    <div class="sheet-top" id="sheet-top">
+      <div class="grip"><span></span></div>
+      <div class="sheet-head">
+        <h2>Expressions</h2>
+        <div class="sheet-actions">
+          <button class="chip" type="button" id="btn-examples">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 2l1.9 5.6L19.5 9.5l-5.6 1.9L12 17l-1.9-5.6L4.5 9.5l5.6-1.9zM19 14l.9 2.6 2.6.9-2.6.9L19 21l-.9-2.6-2.6-.9 2.6-.9z"/></svg>
+            Exemples
+          </button>
+          <button class="icon-btn small grad" type="button" id="btn-add" aria-label="Ajouter une expression">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+    <ul class="expr-list" id="expr-list"></ul>
+  </section>
+
+  <section class="view" id="view-calc" aria-label="Calculatrice">
+    <div class="calc-screen">
+      <div class="calc-head">
+        <span class="calc-mode" id="calc-mode">RAD</span>
+        <button class="chip ghost" type="button" id="calc-clear-hist">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>
+          Historique
+        </button>
+      </div>
+      <div class="calc-history" id="calc-history"></div>
+      <div class="calc-current">
+        <input id="calc-input" class="calc-input" inputmode="none" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" aria-label="Calcul">
+        <div class="calc-preview" id="calc-preview"></div>
+      </div>
+    </div>
+    <div class="calc-pad">
+      <div class="kp kp-sci" id="calc-sci"></div>
+      <div class="kp kp-main" id="calc-main"></div>
+    </div>
+  </section>
+
+  <section class="view" id="view-table" aria-label="Table de valeurs">
+    <div class="table-controls glass">
+      <label>Début <input class="mini" id="tbl-start" data-kp="table" inputmode="none" value="-5" autocomplete="off"></label>
+      <label>Pas <input class="mini" id="tbl-step" data-kp="table" inputmode="none" value="1" autocomplete="off"></label>
+    </div>
+    <div class="table-wrap" id="tbl-wrap"><table id="tbl"></table></div>
+    <div class="empty" id="tbl-empty">
+      <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M3 9h18M9 4v16"/></svg>
+      <p>Ajoutez une fonction <b>y = f(x)</b> dans l’onglet Graphe pour afficher sa table de valeurs.</p>
+    </div>
+  </section>
+
+  <div class="keypad glass" id="keypad">
+    <div class="kp-top">
+      <span class="kp-hint" id="kp-hint"></span>
+      <button class="kp-hide" type="button" id="kp-hide" aria-label="Masquer le clavier">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+      </button>
+    </div>
+    <div class="kp" id="kp-body"></div>
+  </div>
+
+  <div class="modal" id="modal-settings" aria-hidden="true">
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-card glass">
+      <div class="modal-grip" data-close><span></span></div>
+      <h3>Réglages</h3>
+      <div class="set-group">
+        <div class="set-row"><span>Thème</span>
+          <div class="seg" data-set="theme"><button type="button" data-val="dark">Sombre</button><button type="button" data-val="light">Clair</button><button type="button" data-val="auto">Auto</button></div>
+        </div>
+        <div class="set-row"><span>Angles</span>
+          <div class="seg" data-set="angle"><button type="button" data-val="rad">Radians</button><button type="button" data-val="deg">Degrés</button></div>
+        </div>
+        <label class="set-row"><span>Vibrations</span><input type="checkbox" class="switch" data-toggle="haptics"></label>
+        <label class="set-row"><span>Grille</span><input type="checkbox" class="switch" data-toggle="grid"></label>
+        <label class="set-row"><span>Points remarquables</span><input type="checkbox" class="switch" data-toggle="poi"></label>
+      </div>
+      <div class="set-actions">
+        <button class="btn" type="button" data-act="export">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3M7 8l5-5 5 5"/><path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></svg>
+          Partager le graphe
+        </button>
+        <button class="btn" type="button" data-act="home">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v4M12 17.5v4M2.5 12h4M17.5 12h4"/></svg>
+          Recentrer la vue
+        </button>
+        <button class="btn danger" type="button" data-act="clear">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>
+          Tout effacer
+        </button>
+      </div>
+      <details class="help">
+        <summary>Aide-mémoire</summary>
+        <dl>
+          <dt>y = 2x + 1</dt><dd>Fonction</dd>
+          <dt>f(x) = x² − 3</dt><dd>Fonction nommée, réutilisable : f(2), f′(x)</dd>
+          <dt>a = 2</dt><dd>Curseur animable</dd>
+          <dt>x² + y² = 9</dt><dd>Courbe implicite</dd>
+          <dt>y &lt; sin(x)</dt><dd>Inéquation, zone colorée</dd>
+          <dt>r = 2cos(3θ)</dt><dd>Courbe polaire</dd>
+          <dt>(cos t, sin t)</dt><dd>Courbe paramétrée</dd>
+          <dt>(2, 3)</dt><dd>Point</dd>
+          <dt>∫(x², 0, 3)</dt><dd>Intégrale</dd>
+          <dt>Σ(k², k, 1, 10)</dt><dd>Somme</dd>
+          <dt>d/dx(x³)</dt><dd>Dérivée</dd>
+        </dl>
+        <p>Touchez une courbe pour suivre ses coordonnées, pincez pour zoomer, touchez deux fois pour agrandir.</p>
+      </details>
+      <p class="about">Nova Graph 1.0 · Calculatrice graphique</p>
+    </div>
+  </div>
+
+  <div class="modal" id="modal-examples" aria-hidden="true">
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-card glass">
+      <div class="modal-grip" data-close><span></span></div>
+      <h3>Exemples</h3>
+      <p class="modal-sub">Touchez une carte pour la charger (vos expressions actuelles seront remplacées).</p>
+      <div class="ex-grid" id="ex-grid"></div>
+    </div>
+  </div>
+
+  <div class="popover glass" id="color-pop"></div>
+  <div class="toast" id="toast" role="status"></div>
+</div>
+<script src="js/math.js"></script>
+<script src="js/workspace.js"></script>
+<script src="js/graph.js"></script>
+<script src="js/keypad.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
