@@ -111,6 +111,8 @@
         items: ws.toJSON(),
         settings,
         view: graph.view,
+        snap: L.snap,
+        table: { start: tStart.value, step: tStep.value },
         calc: { history: calc.history.slice(-80), ans: calc.ans },
       }));
     } catch (e) { /* stockage indisponible */ }
@@ -215,6 +217,7 @@
       st = null;
       app.classList.remove('dragging');
       layout();
+      save();
       Bridge.haptic('tick');
     };
     zone.addEventListener('pointerup', end);
@@ -838,7 +841,10 @@
   /* ------------------------------------------------------------------ */
 
   const tStart = $('#tbl-start'), tStep = $('#tbl-step');
-  if (saved && saved.table) { tStart.value = saved.table.start; tStep.value = saved.table.step; }
+  if (saved && saved.table) {
+    tStart.value = saved.table.start || '-5';
+    tStep.value = saved.table.step || '1';
+  }
 
   function constVal(txt, def) {
     try {
@@ -872,14 +878,7 @@
     }
     $('#tbl').innerHTML = html + '</tbody>';
   }
-  const onTableInput = () => {
-    renderTable();
-    try {
-      const cur = JSON.parse(localStorage.getItem(STORE) || '{}');
-      cur.table = { start: tStart.value, step: tStep.value };
-      localStorage.setItem(STORE, JSON.stringify(cur));
-    } catch (e) { /* ignore */ }
-  };
+  const onTableInput = () => { renderTable(); save(); };
   tStart.addEventListener('input', onTableInput);
   tStep.addEventListener('input', onTableInput);
 
