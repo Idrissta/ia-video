@@ -14,5 +14,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "NovaGraph"
+rootProject.name = "IaVideo"
 include(":app")
+include(":film")
