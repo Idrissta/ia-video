@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   build:
-    name: Compiler l'APK
+    name: Compiler les APK
     runs-on: ubuntu-latest
     env:
       # Secrets facultatifs pour signer avec votre propre clé (voir README).
@@ -32,8 +32,14 @@ jobs:
         with:
           node-version: 22
 
-      - name: Tests du moteur mathématique
+      - name: Tests du moteur mathématique (Nova Graph)
         run: node tools/test-math.js
+
+      - name: Tests des moteurs IA (CINÉ-GENESIS)
+        run: node tools/test-film.js
+
+      - name: Syntaxe des scripts de CINÉ-GENESIS
+        run: for f in film/src/main/assets/web/js/*.js; do node --check "$f"; done
 
       - uses: actions/setup-java@v4
         with:
@@ -48,31 +54,57 @@ jobs:
           echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.keystore"
           echo "NOVA_KEYSTORE=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
 
-      - name: Compiler l'APK de production
+      - name: Compiler les APK de production
         run: ./gradlew --no-daemon assembleRelease
 
-      - name: Vérifier la signature et le manifeste
+      - name: Vérifier les signatures et les manifestes
         run: |
           BT="$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)"
-          APK=app/build/outputs/apk/release/app-release.apk
-          "$BT/apksigner" verify --verbose --print-certs "$APK"
-          "$BT/aapt2" dump badging "$APK" | grep -E "^(package|sdkVersion|targetSdkVersion|application-label|launchable-activity)"
+          for APK in film/build/outputs/apk/release/film-release.apk app/build/outputs/apk/release/app-release.apk; do
+            echo "== $APK ($(du -h "$APK" | cut -f1))"
+            "$BT/apksigner" verify --verbose --print-certs "$APK"
+            "$BT/aapt2" dump badging "$APK" | grep -E "^(package|sdkVersion|targetSdkVersion|application-label|launchable-activity)"
+          done
 
-      - name: Préparer le fichier
+      - name: Préparer les fichiers
         run: |
-          mkdir -p dist
-          cp app/build/outputs/apk/release/app-release.apk "dist/NovaGraph-1.0.${{ github.run_number }}.apk"
-          ls -la dist
+          mkdir -p dist/film dist/nova
+          cp film/build/outputs/apk/release/film-release.apk "dist/film/CineGenesis-2.0.${{ github.run_number }}.apk"
+          cp app/build/outputs/apk/release/app-release.apk "dist/nova/NovaGraph-1.0.${{ github.run_number }}.apk"
+          ls -laR dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CineGenesis-apk
+          path: dist/film/*.apk
+          if-no-files-found: error
 
       - uses: actions/upload-artifact@v4
         with:
           name: NovaGraph-apk
-          path: dist/*.apk
+          path: dist/nova/*.apk
           if-no-files-found: error
+
+      # Lien de téléchargement fixe, toujours à jour, à ouvrir depuis le téléphone :
+      # https://github.com/<propriétaire>/<dépôt>/releases/download/apk-latest/CineGenesis.apk
+      - name: Mettre à jour la version « apk-latest »
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/heads/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp dist/film/*.apk dist/CineGenesis.apk
+          cp dist/nova/*.apk dist/NovaGraph.apk
+          gh release delete apk-latest --yes --cleanup-tag --repo "$GITHUB_REPOSITORY" || true
+          gh release create apk-latest dist/CineGenesis.apk dist/NovaGraph.apk \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease \
+            --title "Dernière version (${GITHUB_REF_NAME} · ${GITHUB_SHA::7})" \
+            --notes "APK compilés automatiquement depuis la branche ${GITHUB_REF_NAME}. Installez CineGenesis.apk sur Android 8.0 ou plus récent."
 
       - name: Publier une version (tags v*)
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/*.apk
+          files: |
+            dist/film/*.apk
+            dist/nova/*.apk
           generate_release_notes: true

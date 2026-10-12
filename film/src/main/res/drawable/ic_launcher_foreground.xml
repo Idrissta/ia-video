@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Cadre de clap / écran -->
+    <path
+        android:pathData="M33,40h42a5,5 0,0 1,5 5v26a5,5 0,0 1,-5 5h-42a5,5 0,0 1,-5 -5v-26a5,5 0,0 1,5 -5z"
+        android:strokeWidth="4"
+        android:strokeColor="#FFFFFFFF"
+        android:fillColor="#00000000" />
+    <!-- Barre du clap -->
+    <path
+        android:pathData="M29,33l44,-8l1.6,8.6l-44,8z"
+        android:fillColor="#FFFFFFFF" />
+    <path
+        android:pathData="M38,31.4l5,6.4M50,29.2l5,6.4M62,27l5,6.4"
+        android:strokeWidth="3"
+        android:strokeColor="#FF1A0B3D"
+        android:strokeLineCap="round" />
+    <!-- Étincelle IA -->
+    <path android:pathData="M54,46c1.2,5.6 3.4,7.8 9,9c-5.6,1.2 -7.8,3.4 -9,9c-1.2,-5.6 -3.4,-7.8 -9,-9c5.6,-1.2 7.8,-3.4 9,-9z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:endX="63"
+                android:endY="64"
+                android:startX="45"
+                android:startY="46"
+                android:type="linear">
+                <item android:color="#FFC084FC" android:offset="0" />
+                <item android:color="#FF22D3EE" android:offset="1" />
+            </gradient>
+        </aapt:attr>
+    </path>
+</vector>
