@@ -406,7 +406,7 @@ const DB = (() => {
   const KP = { sessions: 'id', items: 'id', config: 'key' };
   const mem = { sessions: {}, items: {}, config: {} };
   const lsK = (s, k) => 'cg1_' + s + '_' + k;
-  let h = null, mode = 'idb', opening = null, warned = false;
+  let h = null, mode = 'idb', opening = null, warned = false, frozen = false;
 
   const ls = {
     get(s, k) { try { const v = localStorage.getItem(lsK(s, k)); return v == null ? undefined : JSON.parse(v); } catch (e) { return undefined; } },
@@ -447,8 +447,12 @@ const DB = (() => {
     if (opening) return opening;
     opening = new Promise(resolve => {
       let settled = false;
-      const fin = ok => { if (!settled) { settled = true; clearTimeout(to); resolve(ok); } };
-      const to = setTimeout(() => { fall(new Error('délai dépassé')); fin(false); }, 3000);
+      const fin = ok => { if (!settled) { settled = true; clearTimeout(to); clearTimeout(slow); resolve(ok); } };
+      // Base lente (téléphone chargé) : on patiente au lieu de démarrer « vide » comme une première installation.
+      const slow = setTimeout(() => {
+        try { const b = document.querySelector('.boot span'); if (b) b.textContent = 'Ouverture de vos données…'; } catch (e) { /* DOM absent */ }
+      }, 3000);
+      const to = setTimeout(() => { fall(new Error('délai dépassé')); fin(false); }, 15000);
       try {
         if (typeof indexedDB === 'undefined' || !indexedDB) throw new Error('IndexedDB absent');
         const r = indexedDB.open('cinegenesis', 1);
@@ -457,9 +461,18 @@ const DB = (() => {
           Object.keys(KP).forEach(s => { if (!d.objectStoreNames.contains(s)) d.createObjectStore(s, { keyPath: KP[s] }); });
         };
         r.onsuccess = () => {
-          // Ouverture tardive (après le délai) : on adopte quand même la base, le secours reste lisible.
-          adopt(r.result);
-          fin(true);
+          if (!settled) { adopt(r.result); fin(true); return; }
+          // Ouverture après le délai : l'app tourne sur le secours (vide). Pour ne pas écraser les vraies
+          // données (réglages, projet courant), on recharge une fois la page qui relit tout depuis la base.
+          let n = 9;
+          try { n = +sessionStorage.getItem('cg_dbre') || 0; sessionStorage.setItem('cg_dbre', String(n + 1)); } catch (e) { n = 9; }
+          if (n < 1) {
+            frozen = true;
+            log('wr', 'base locale ouverte en retard → rechargement');
+            try { location.reload(); return; } catch (e) { frozen = false; }
+          }
+          try { r.result.close(); } catch (e) { /* déjà fermée */ }
+          log('wr', 'base locale ouverte trop tard : relancez l’application pour retrouver vos données');
         };
         r.onerror = () => { fall(r.error); fin(false); };
         r.onblocked = () => log('wr', 'base locale bloquée par un autre onglet');
@@ -492,6 +505,7 @@ const DB = (() => {
   async function put(s, v) {
     chk(s);
     if (!v || v[KP[s]] == null) throw new Error('clé manquante (' + KP[s] + ')');
+    if (frozen) return;
     const k = v[KP[s]];
     mem[s][k] = v;
     await ready();
@@ -507,6 +521,7 @@ const DB = (() => {
 
   async function del(s, k) {
     chk(s);
+    if (frozen) return;
     delete mem[s][k];
     await ready();
     if (live()) { try { await tx(s, 'readwrite', o => o.delete(k)); } catch (e) { fall(e); } }
@@ -535,12 +550,12 @@ const DB = (() => {
    RÉGLAGES
    ═════════════════════════════════════════════════════════════════════ */
 const _co_cfg0 = () => ({
-  agnes: { keys: [], plan: 'free', imgSize: '4K', vidRes: '1080' },
+  agnes: { keys: [], plan: 'free', imgSize: '2K', vidRes: '1080' },
   fal: { key: '' },
   oai: { url: '', model: '', key: '' },
   eng: { text: 'auto', image: 'auto', video: 'auto' },
   up4k: true,
-  local4k: true,
+  local4k: false,
   audio: true,
   falPar: 3,
   exp: { codec: 'auto', mbps: 60, sharpen: 35 },
@@ -564,13 +579,17 @@ function _co_normCfg() {
   const keys = Array.isArray(CFG.agnes.keys) ? CFG.agnes.keys : String(CFG.agnes.keys || '').split(/[\s,;]+/);
   CFG.agnes.keys = Array.from(new Set(keys.map(s => String(s).trim()).filter(s => s.length >= 8)));
   if (CFG.agnes.plan !== 'plan') CFG.agnes.plan = 'free';
-  if (['1K', '2K', '4K'].indexOf(CFG.agnes.imgSize) < 0) CFG.agnes.imgSize = '4K';
+  // Images Agnès : 2K par défaut (rapide) ; l'ancien défaut 4K enregistré n'est gardé que s'il a été choisi (sizeSet).
+  if (['1K', '2K', '4K'].indexOf(CFG.agnes.imgSize) < 0 || (CFG.agnes.imgSize === '4K' && CFG.agnes.sizeSet !== true)) CFG.agnes.imgSize = '2K';
   if (CFG.agnes.vidRes !== '720') CFG.agnes.vidRes = '1080';
   CFG.fal.key = String(CFG.fal.key || '').trim();
   ['url', 'model', 'key'].forEach(k => { CFG.oai[k] = String(CFG.oai[k] || '').trim(); });
   ['text', 'image', 'video'].forEach(k => { if (!CFG.eng[k]) CFG.eng[k] = 'auto'; });
   CFG.up4k = CFG.up4k !== false;
-  CFG.local4k = CFG.local4k !== false;
+  // 4K sur le téléphone : désormais sur demande. Seul un choix fait dans Réglages (local4kSet) est gardé,
+  // l'ancienne valeur par défaut enregistrée (true) ne compte pas comme un choix.
+  CFG.local4kSet = CFG.local4kSet === true;
+  CFG.local4k = CFG.local4kSet && CFG.local4k === true;
   CFG.audio = CFG.audio !== false;
   CFG.falPar = clamp(Math.round(+CFG.falPar || 3), 1, 8);
   if (['auto', 'hevc', 'avc'].indexOf(CFG.exp.codec) < 0) CFG.exp.codec = 'auto';

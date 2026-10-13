@@ -685,14 +685,15 @@ public class MainActivity extends Activity {
         return bos.toByteArray();
     }
 
+    static byte[] dataBytes(String url) throws IOException {
+        int comma = url.indexOf(',');
+        if (comma < 0) throw new IOException("data URI invalide");
+        return Base64.decode(url.substring(comma + 1), Base64.DEFAULT);
+    }
+
     /** Ouvre une URL http(s) ou data: et renvoie son contenu. */
     static InputStream openStream(String url, Map<String, HttpURLConnection> track, String id) throws IOException {
-        if (url.startsWith("data:")) {
-            int comma = url.indexOf(',');
-            if (comma < 0) throw new IOException("data URI invalide");
-            byte[] bytes = Base64.decode(url.substring(comma + 1), Base64.DEFAULT);
-            return new ByteArrayInputStream(bytes);
-        }
+        if (url.startsWith("data:")) return new ByteArrayInputStream(dataBytes(url));
         HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
         c.setConnectTimeout(30000);
         c.setReadTimeout(120000);
@@ -763,17 +764,31 @@ public class MainActivity extends Activity {
     private void imageData(String id, String url, int maxSide) {
         io.execute(() -> {
             JSONObject res;
-            try (InputStream in = openStream(url, running, id)) {
-                byte[] data = readAll(in);
+            File tmp = null;
+            boolean slot = false;
+            try {
+                byte[] data = null;
+                if (url.startsWith("data:")) {
+                    data = dataBytes(url);
+                } else {
+                    // Fichier temporaire plutôt qu'un tampon : une image 4K n'est jamais entière en mémoire.
+                    tmp = File.createTempFile("img", ".tmp", getCacheDir());
+                    try (InputStream in = openStream(url, running, id); OutputStream os = new FileOutputStream(tmp)) {
+                        copy(in, os);
+                    }
+                }
+                decodeSlots.acquire();
+                slot = true;
                 BitmapFactory.Options o = new BitmapFactory.Options();
                 o.inJustDecodeBounds = true;
-                BitmapFactory.decodeByteArray(data, 0, data.length, o);
+                decode(data, tmp, o);
                 if (o.outWidth <= 0) throw new IOException("image illisible");
                 int w = o.outWidth, h = o.outHeight, sample = 1;
                 while (Math.max(w, h) / (sample * 2) >= maxSide) sample *= 2;
                 BitmapFactory.Options d = new BitmapFactory.Options();
                 d.inSampleSize = sample;
-                Bitmap bmp = BitmapFactory.decodeByteArray(data, 0, data.length, d);
+                Bitmap bmp = decode(data, tmp, d);
+                data = null;
                 if (bmp == null) throw new IOException("image illisible");
                 float scale = Math.min(1f, (float) maxSide / Math.max(bmp.getWidth(), bmp.getHeight()));
                 if (scale < 1f) {
@@ -786,13 +801,20 @@ public class MainActivity extends Activity {
                 bmp.recycle();
                 res = obj("status", 200, "body", "data:image/jpeg;base64," + Base64.encodeToString(bos.toByteArray(), Base64.NO_WRAP),
                         "w", w, "h", h);
-            } catch (Exception e) {
-                res = obj("status", 0, "error", String.valueOf(e.getMessage()));
+            } catch (Exception | OutOfMemoryError e) {
+                // Une erreur mémoire ne doit pas tuer l'application : la page garde l'URL d'origine.
+                res = obj("status", 0, "error", e instanceof OutOfMemoryError ? "image trop lourde" : String.valueOf(e.getMessage()));
             } finally {
+                if (slot) decodeSlots.release();
                 running.remove(id);
+                if (tmp != null) tmp.delete();
             }
             deliver(id, res);
         });
+    }
+
+    private static Bitmap decode(byte[] data, File file, BitmapFactory.Options o) {
+        return data != null ? BitmapFactory.decodeByteArray(data, 0, data.length, o) : BitmapFactory.decodeFile(file.getPath(), o);
     }
 
     /* ------------------------------------------------------------------ */
@@ -874,7 +896,11 @@ public class MainActivity extends Activity {
             uri = rowFor(cr, collection, out.getAbsolutePath());
             if (uri != null) {
                 v.remove(MediaStore.MediaColumns.DATA);
-                cr.update(uri, v, null, null);
+                try {
+                    cr.update(uri, v, null, null);
+                } catch (RuntimeException ignored) {
+                    // l'entrée pointe déjà vers ce fichier
+                }
             }
         }
         if (uri == null) {
@@ -952,7 +978,7 @@ public class MainActivity extends Activity {
                     }
                 }
                 if (share) share(uri, mime);
-                res = obj("status", 200, "uri", uri.toString(), "name", file);
+                res = obj("status", 200, "uri", uri.toString(), "name", displayName(uri, file));
             } catch (Exception e) {
                 res = obj("status", 0, "error", String.valueOf(e.getMessage()));
             } finally {

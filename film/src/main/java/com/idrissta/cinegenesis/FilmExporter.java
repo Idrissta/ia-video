@@ -3,7 +3,6 @@ package com.idrissta.cinegenesis;
 import android.Manifest;
 import android.content.Context;
 import android.content.pm.PackageManager;
-import android.database.Cursor;
 import android.media.MediaCodecInfo;
 import android.media.MediaCodecList;
 import android.media.MediaExtractor;
@@ -13,10 +12,8 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Handler;
 import android.os.SystemClock;
-import android.provider.MediaStore;
 import android.util.Log;
 import android.util.Range;
-import android.view.WindowManager;
 
 import androidx.annotation.OptIn;
 import androidx.media3.common.MediaItem;
@@ -291,10 +288,10 @@ final class FilmExporter {
         act.deliver(j.id, ev);
     }
 
+    /** Indépendant de keepAwake (page) : la fin de l'export n'éteint pas l'écran d'une production en cours. */
     private void keepScreenOn(boolean on) {
         try {
-            if (on) act.getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-            else act.getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+            act.setExportAwake(on);
         } catch (RuntimeException ignored) {
             // fenêtre déjà détruite
         }
@@ -663,7 +660,7 @@ final class FilmExporter {
                 return;
             }
             JSONObject done = MainActivity.obj("state", "done", "uri", uri.toString(), "width", width, "height", height,
-                    "durationMs", durationMs, "bytes", bytes, "codec", mime, "name", displayName(uri, j.fileName));
+                    "durationMs", durationMs, "bytes", bytes, "codec", mime, "name", act.displayName(uri, j.fileName));
             postFinish(j, done);
         } catch (Exception e) {
             if (j.cancelled) return;
@@ -682,22 +679,6 @@ final class FilmExporter {
         } catch (RuntimeException ignored) {
             // déjà supprimé
         }
-    }
-
-    private String displayName(Uri uri, String fallback) {
-        if ("content".equals(uri.getScheme())) {
-            try (Cursor c = act.getContentResolver().query(uri, new String[] {MediaStore.MediaColumns.DISPLAY_NAME}, null, null, null)) {
-                if (c != null && c.moveToFirst()) {
-                    String name = c.getString(0);
-                    if (name != null && !name.isEmpty()) return name;
-                }
-            } catch (RuntimeException ignored) {
-                // nom déclaré conservé
-            }
-        } else if (uri.getLastPathSegment() != null) {
-            return uri.getLastPathSegment();
-        }
-        return fallback;
     }
 
     /** Largeur et hauteur d'affichage (rotation appliquée) et durée en ms du fichier produit. */

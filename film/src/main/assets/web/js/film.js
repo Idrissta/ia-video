@@ -69,6 +69,9 @@ const FILM = (() => {
   let lastImgErr = '';
   let awakeOn = false;
   let dev = undefined;
+  const LIVE = new Map();     // films ouverts dans cette session (id → projet) : leur production continue en arrière-plan
+  const gone = new Set();     // films supprimés : jamais réenregistrés, même si une tâche se termine plus tard
+  const RESUMED = new WeakSet();
 
   const newP = () => ({
     id: uid() + uid(), v: 2,
@@ -130,22 +133,25 @@ const FILM = (() => {
     return p;
   }
 
-  function setP(p) {
+  /* Prépare un projet lu en base (une seule fois) et le garde en mémoire : un film déjà ouvert n'est
+     jamais rechargé en double, ses tâches en cours continuent d'écrire dans le même objet. */
+  function live(p) {
+    const cur = LIVE.get(p && p.id);
+    if (cur) return cur;
     p = migrate(p);
-    P = p;
-    P.sub = P.sub || {};
-    Q = P.q = P.q || { step: 0, next: 0, st: 'idle', on: false, cur: -1 };
-    Q.busy = false;
-    if (Q.cur == null) Q.cur = -1;
-    P.chars = Array.isArray(P.chars) ? P.chars : [];
-    P.scenes = Array.isArray(P.scenes) ? P.scenes : [];
-    P.exports = Array.isArray(P.exports) ? P.exports : [];
-    P.imodel = P.imodel || '';
-    P.vmodel = P.vmodel || '';
-    P.vdur = +P.vdur || 0;
-    P.ratio = OUT4K[P.ratio] ? P.ratio : '16:9';
-    P.chars.forEach(c => { c.busy = false; c.img = normImg(c.img); });
-    P.scenes.forEach(s => {
+    p.sub = p.sub || {};
+    const q = p.q = p.q || { step: 0, next: 0, st: 'idle', on: false, cur: -1 };
+    q.busy = false;
+    if (q.cur == null) q.cur = -1;
+    p.chars = Array.isArray(p.chars) ? p.chars : [];
+    p.scenes = Array.isArray(p.scenes) ? p.scenes : [];
+    p.exports = Array.isArray(p.exports) ? p.exports : [];
+    p.imodel = p.imodel || '';
+    p.vmodel = p.vmodel || '';
+    p.vdur = +p.vdur || 0;
+    p.ratio = OUT4K[p.ratio] ? p.ratio : '16:9';
+    p.chars.forEach(c => { c.busy = false; c.img = normImg(c.img); });
+    p.scenes.forEach(s => {
       s.busy = false;
       s.img = normImg(s.img);
       s.chars = Array.isArray(s.chars) ? s.chars : [];
@@ -158,8 +164,18 @@ const FILM = (() => {
         if (h.vst === 'run' && !h.task && !h.video0) h.vst = 'wait';
       });
     });
+    LIVE.set(p.id, p);
+    return p;
+  }
+  function setP(p) {
+    P = live(p);
+    Q = P.q;
     DB.put('config', { key: 'last', v: P.id }).catch(e => log('wr', 'projet courant : ' + e.message));
   }
+  const nameOf = p => p.title || (p.genre && p.genre.name) || 'Sans titre';
+  // Rien ne tourne pour ce film : il peut quitter la mémoire (il sera relu en base s'il est rouvert).
+  const idle = p => !(p.q && p.q.on) && !shots(p).some(x => x.h.vst === 'run') &&
+    ![].concat(p.chars, p.scenes).some(o => o && o.busy) && !shots(p).some(x => x.h.busy) && !(EXP && EXP.active && EXP.p === p);
 
   /* ═════════════════════════════════════════════════════════════════════
      SAUVEGARDE (différée, sans champs transitoires)
@@ -169,11 +185,11 @@ const FILM = (() => {
   const svT = new Map();
   function persist(p) {
     p = p || P;
-    if (!p || !p.id) return;
+    if (!p || !p.id || gone.has(p.id)) return;
     clearTimeout(svT.get(p.id));
     svT.set(p.id, setTimeout(() => {
       svT.delete(p.id);
-      if (pristine(p)) return;
+      if (gone.has(p.id) || pristine(p)) return;
       p.upd = Date.now();
       let snap;
       try { snap = clean(p); } catch (e) { log('er', 'sauvegarde : ' + e.message); return; }
@@ -182,7 +198,7 @@ const FILM = (() => {
   }
 
   function awake() {
-    const v = !!(TASK && !TASK.err) || !!(Q && Q.on) || !!(EXP && EXP.active);
+    const v = !!(TASK && !TASK.err) || Array.from(LIVE.values()).some(p => p.q && p.q.on) || !!(EXP && EXP.active);
     if (v !== awakeOn) { awakeOn = v; keepAwake(v); }
   }
 
@@ -193,15 +209,16 @@ const FILM = (() => {
   const imSrc = i => (i ? i.t || i.u || '' : '');
   const norm = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase();
   const has = (list, name) => !!name && (list || []).some(x => norm(x) === norm(name));
-  const st = () => (P.genre && P.genre.style ? P.genre.style : 'cinematic');
+  const st = p => { p = p || P; return p.genre && p.genre.style ? p.genre.style : 'cinematic'; };
   const sheet = n => P.chars.filter(c => has(n, c.name)).map(c => c.name + ': ' + c.desc + (c.outfit ? ', wearing ' + c.outfit : '')).join('; ');
   const cImgs = n => P.chars.filter(c => has(n, c.name) && c.img).map(c => c.img.u).slice(0, 3);
   const imodel = () => pickImage(P && P.imodel);
   const vmodel = () => pickVideo(P && P.vmodel);
   const charRatio = () => { const m = imodel(); return m && IMODELS[m] && IMODELS[m].prov === 'agnes' ? '9:16' : '3:4'; };
-  const vdur = vm => {
+  const vdur = (vm, p) => {
+    p = p || P;
     const ds = (VMODELS[vm] && VMODELS[vm].durs) || [5];
-    return ds.indexOf(+P.vdur) >= 0 ? +P.vdur : ds[0];
+    return ds.indexOf(+p.vdur) >= 0 ? +p.vdur : ds[0];
   };
   const stopped = () => !!(TASK && TASK.stop);
   const CTX = () => 'Genre : ' + (P.genre ? P.genre.name + ' (' + P.genre.style + ')' : 'libre') + '.';
@@ -232,7 +249,7 @@ const FILM = (() => {
   }
 
   /* Prompt vidéo d'origine, enrichi pour les modèles 4K */
-  const vp = (h, s) => san(st() + '. Cinematic 4K footage, ultra-detailed, natural fluid motion, film-grade color. ' + h.action + '. Camera: ' + h.camera + '. Setting: ' + s.decor + '. ' +
+  const vp = (h, s, p) => san(st(p) + '. Cinematic 4K footage, ultra-detailed, natural fluid motion, film-grade color. ' + h.action + '. Camera: ' + h.camera + '. Setting: ' + s.decor + '. ' +
     (h.line ? (h.who || 'The character') + ' says in French, lips in sync: "' + h.line + '".' : 'No speech.') +
     ' Realistic ambient sound effects only, no music, no subtitles, no on-screen text. Keep the identity, outfit and visual style of the first frame identical throughout.');
 
@@ -599,6 +616,7 @@ const FILM = (() => {
     const res = h.video ? (is4k(h) ? '<span class="badge b4k">4K</span>' : resLabel(h.vw, h.vh) ? '<span class="badge bdim">' + esc(resLabel(h.vw, h.vh)) + '</span>' : '') : '';
     const stb = h.vst === 'ok' ? '' : '<span class="badge ' + (h.vst === 'er' ? 'ber' : run ? 'bwr' : 'bdim') + '">' + (h.img ? LBL[h.vst] || '' : 'image manquante') + '</span>';
     const meta = [h.img ? LBL[h.vst] || '' : 'image manquante'];
+    if (h.vst === 'wait' && h.img && Q && Q.on && Q.st === 'full') meta.push('Agnès saturée — nouvel essai à ' + hhmm(Q.next));
     if (h.vm && VMODELS[h.vm]) meta.push(VMODELS[h.vm].name);
     if (run && h.msg) meta.push(h.msg);
     if (h.err) meta.push(h.err);
@@ -761,7 +779,8 @@ const FILM = (() => {
     return '<div class="hero">' + hd(6, 'Les <span class="gt">vidéos</span>') +
       '<p class="sub">Chaque image de plan devient une vidéo' + (m ? ' avec <b>' + esc(m.name) + '</b> (' + vdur(vm) + ' s par plan)' : '') + '. ' +
       (m && m.prov === 'agnes'
-        ? 'La file vidéo Agnès est souvent saturée : l’app envoie les plans un par un et, si c’est plein, attend toute seule (3, 6, 12, 24… minutes) avant de réessayer. <b>Gardez l’application ouverte.</b>'
+        ? 'La file vidéo Agnès est souvent saturée : l’app envoie les plans un par un et, si c’est plein, attend toute seule (' + LADDER.slice(0, 4).join(', ') + '… minutes) avant de réessayer. <b>Gardez l’application ouverte.</b>' +
+          (hasFal() ? ' Pour ne pas attendre, choisissez Kling ou LTX (fal.ai).' : '')
         : 'Les plans sont envoyés à fal.ai jusqu’à ' + CFG.falPar + ' en parallèle. <b>Vous pouvez quitter cet écran</b> : le suivi continue et reprend au prochain lancement.') +
       ' En attendant, regardez le film en « animatic » (images + voix).</p>' +
       '<div class="row">' + btn('fgo', 'Changer de moteur', 'sm ghost', 'data-n="' + S_GENRE + '"') + '<span class="sub" id="fiCost"></span></div></div>' +
@@ -955,6 +974,16 @@ const FILM = (() => {
   /* ═════════════════════════════════════════════════════════════════════
      FILE D'ATTENTE VIDÉO
      ═════════════════════════════════════════════════════════════════════ */
+  const hhmm = t => { try { return new Date(t).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }); } catch (e) { return new Date(t).toTimeString().slice(0, 5); } };
+  const unsat = q => { q.st = 'run'; q.next = 0; q.step = 0; q.cur = -1; };
+  // Modèle fal.ai proposé quand Agnès est saturée : celui des Réglages s'il est fal.ai, sinon Kling 3.0 · 4K.
+  const falVm = () => { const e = CFG.eng && CFG.eng.video; return e && VMODELS[e] && VMODELS[e].prov === 'fal' ? e : 'kling4k'; };
+  // Relance ciblée : production en pause → seuls ces plans partent ; production en cours → rien ne change.
+  function only(q, ids) {
+    if (!q.on) q.only = ids.slice();
+    else if (q.only) ids.forEach(id => { if (q.only.indexOf(id) < 0) q.only.push(id); });
+  }
+
   function updFor(p, h) {
     return s => {
       if (P === p) { refresh(h.id); if (page === S_VIDEOS) qui(); }
@@ -971,16 +1000,23 @@ const FILM = (() => {
     if (!Q.on && Q.st === 'idle' && !ok && !er) return note('<b>Prêt à créer les vidéos.</b> Vos images de plans sont validées. 👉 Touchez le bouton : tout se passe ensuite automatiquement.') + '<div class="row">' + btn('fqstart', '▶ Lancer la production des vidéos', 'pri xl') + '</div>';
     if (!Q.on) return note('<b>Production en pause.</b> ' + ok + ' vidéo(s) prête(s), ' + left + ' restante(s)' + (run ? ', ' + run + ' encore en cours' : '') + '.', 'wr') + erRow + (left - er > 0 || !er ? '<div class="row">' + btn('fqstart', '▶ Reprendre la production', 'pri') + '</div>' : '');
     if (Q.st === 'full') {
-      return note('<b>⏳ File d’attente Agnès saturée.</b> Aucune requête n’est envoyée pendant l’attente. Prochain test dans <b id="fiCd" class="mono" style="font-size:18px">' + fmtTime((Q.next - Date.now()) / 1000) + '</b>', 'wr') +
+      const fm = falVm(), usd = estimateVideoUSD(fm, vdur(fm));
+      return note('<b>⏳ Agnès saturée — nouvel essai à ' + hhmm(Q.next) + '.</b> Aucune requête n’est envoyée pendant l’attente. Prochain test dans <b id="fiCd" class="mono" style="font-size:18px">' + fmtTime((Q.next - Date.now()) / 1000) + '</b>', 'wr') +
         '<div class="lab">Paliers d’attente</div><div class="row">' + LADDER.map((m, i) => '<span class="badge ' + (i === Q.cur ? 'bwr' : i < Q.cur ? 'bok' : 'bdim') + '">' + m + ' min</span>').join('') + '</div>' +
+        (hasFal()
+          ? note('⚡ Pour ne plus attendre, passez ce film sur <b>' + esc(VMODELS[fm].name) + '</b> (fal.ai' + (usd != null ? ', ' + esc(fmtUSD(usd)) + ' par plan' : '') + ') : les plans en attente partent tout de suite.') +
+            '<div class="row">' + btn('fvmodel', '⚡ Passer sur ' + esc(VMODELS[fm].name), 'pri', 'data-m="' + fm + '"') + '</div>'
+          : note('⚡ Pour générer tout de suite, ajoutez une clé <b>fal.ai</b> (Kling 3.0, LTX-2.3 en 4K natif).') +
+            '<div class="row"><button type="button" class="btn sm" data-a="tab" data-tab="settings">Ajouter une clé fal.ai</button></div>') +
         '<div class="row">' + btn('fqnow', 'Tester maintenant', 'sm') + btn('fqpause', '❚❚ Mettre en pause', 'sm ghost') + '</div>';
     }
-    return note('<b>⚙ Production en cours.</b> Les vidéos sont envoyées à ' + (fal ? 'fal.ai (jusqu’à ' + CFG.falPar + ' en parallèle)' : 'Agnès') + ' et apparaissent ci-dessous dès qu’elles sont prêtes (' + ok + ' prête(s), ' + run + ' en cours, ' + Math.max(0, left - run) + ' en attente).') +
+    return note('<b>⚙ Production en cours.</b> Les vidéos sont envoyées à ' + (fal ? 'fal.ai (jusqu’à ' + CFG.falPar + ' en parallèle)' : 'Agnès') + ' et apparaissent ci-dessous dès qu’elles sont prêtes (' + ok + ' prête(s), ' + run + ' en cours, ' + Math.max(0, left - run) + ' en attente).' +
+      (Q.only ? ' Relance ciblée : ' + Q.only.length + ' plan(s), les autres restent en pause.' : '')) +
       '<div class="row">' + btn('fqpause', '❚❚ Mettre en pause', 'sm ghost') + '</div>';
   }
 
-  function counts() {
-    const a = shots();
+  function counts(p) {
+    const a = shots(p);
     const n = s => a.filter(x => x.h.vst === s && x.h.img).length;
     return { a, ok: a.filter(x => x.h.vst === 'ok').length, run: n('run'), wait: n('wait'), er: n('er'), left: a.filter(x => x.h.vst !== 'ok' && x.h.img).length, nv: a.filter(x => x.h.video && !x.h.seen).length, k4: a.filter(x => x.h.video && is4k(x.h)).length };
   }
@@ -990,7 +1026,7 @@ const FILM = (() => {
     if (!c || !P) return;
     const k = counts();
     if (!k.a.some(x => x.h.img) || (!Q.on && !k.ok && !k.run)) { c.innerHTML = ''; return; }
-    const t = Q.st === 'full' && Q.on ? 'file saturée · ' + fmtTime((Q.next - Date.now()) / 1000)
+    const t = Q.st === 'full' && Q.on ? 'Agnès saturée · ' + fmtTime((Q.next - Date.now()) / 1000)
       : !Q.on ? (k.ok === k.a.length ? 'vidéos prêtes' : 'en pause') : 'vidéos ' + k.ok + '/' + k.a.length;
     const cls = Q.st === 'full' && Q.on ? 'bwr' : !Q.on ? (k.ok === k.a.length ? 'bok' : 'bdim') : 'baud';
     c.innerHTML = '<span class="badge ' + cls + '">' + esc(t) + '</span>';
@@ -1001,8 +1037,15 @@ const FILM = (() => {
     const e = document.getElementById('fiQ');
     if (!e || page !== S_VIDEOS || TASK || !P) return;
     const k = counts(), vm = vmodel();
-    const sig = [Q.st, Q.on, Q.cur, k.ok, k.left, k.run, k.er, k.a.length, vm, CFG.falPar].join();
-    if (force || e.dataset.sig !== sig) { e.dataset.sig = sig; e.innerHTML = qHtml(k.ok, k.left, k.run, k.er, vm); }
+    const full = Q.on && Q.st === 'full' ? Q.next : 0;
+    const sig = [Q.st, Q.on, Q.cur, k.ok, k.left, k.run, k.er, k.a.length, vm, CFG.falPar, Q.only ? Q.only.length : 0, hasFal(), full].join();
+    if (force || e.dataset.sig !== sig) {
+      // Les tuiles en attente affichent l'heure du prochain essai Agnès.
+      if (!force && String(full) !== e.dataset.full) k.a.forEach(x => { if (x.h.vst === 'wait' && x.h.img) refresh(x.h.id); });
+      e.dataset.sig = sig;
+      e.dataset.full = String(full);
+      e.innerHTML = qHtml(k.ok, k.left, k.run, k.er, vm);
+    }
     const cd = document.getElementById('fiCd');
     if (cd) cd.textContent = fmtTime((Q.next - Date.now()) / 1000);
   }
@@ -1024,23 +1067,24 @@ const FILM = (() => {
     }
   }
 
-  function sat() {
-    const i = clamp(Q.step | 0, 0, LADDER.length - 1);
-    Q.st = 'full';
-    Q.cur = i;
-    Q.next = Date.now() + LADDER[i] * 60000;
+  function sat(p) {
+    const q = p.q;
+    const i = clamp(q.step | 0, 0, LADDER.length - 1);
+    q.st = 'full';
+    q.cur = i;
+    q.next = Date.now() + LADDER[i] * 60000;
     log('wr', 'file vidéo saturée → nouveau test dans ' + LADDER[i] + ' min');
-    toast('File Agnès saturée — nouveau test dans ' + LADDER[i] + ' min', 'wr');
-    Q.step = Math.min(i + 1, LADDER.length - 1);
-    persist();
-    qui();
+    toast('Agnès saturée — nouvel essai à ' + hhmm(q.next) + (p === P ? '' : ' (« ' + nameOf(p) + ' »)'), 'wr');
+    q.step = Math.min(i + 1, LADDER.length - 1);
+    persist(p);
+    if (p === P) qui();
   }
 
-  async function launch(h, s, vm) {
-    const p = P, q = Q;
-    const r = await startVideo(h, { model: vm, prompt: vp(h, s), image: h.img.u, dur: vdur(vm), ratio: p.ratio, audio: CFG.audio !== false }, updFor(p, h));
-    if (P !== p) return;
-    if (r === 'full') return sat();
+  async function launch(p, h, s, vm) {
+    const q = p.q;
+    const r = await startVideo(h, { model: vm, prompt: vp(h, s, p), image: h.img.u, dur: vdur(vm, p), ratio: p.ratio, audio: CFG.audio !== false }, updFor(p, h));
+    if (gone.has(p.id)) return;
+    if (r === 'full') return sat(p);
     if (r === 'ok') {
       q.st = 'run'; q.step = 0; q.cur = -1;
       persist(p);
@@ -1052,35 +1096,43 @@ const FILM = (() => {
       awake();
       persist(p);
     }
-    qui();
+    if (p === P) qui();
   }
 
-  function qtick() {
-    if (!P || !Q || !Q.on || Q.busy || Date.now() < Q.next) return;
-    const a = shots(), todo = a.filter(x => x.h.vst === 'wait' && x.h.img), run = a.filter(x => x.h.vst === 'run').length;
+  /* Une file par film : celle d'un film quitté continue en arrière-plan. */
+  function qtick(p) {
+    const q = p && p.q;
+    if (!q || !q.on || q.busy || gone.has(p.id)) return;
+    const vm = pickVideo(p.vmodel);
+    // Attente Agnès alors que le film est passé sur fal.ai : inutile d'attendre la fin du palier.
+    if (q.st === 'full' && vm && VMODELS[vm].prov !== 'agnes') unsat(q);
+    if (Date.now() < q.next) return;
+    const a = shots(p), sel = q.only ? new Set(q.only) : null;
+    const todo = a.filter(x => x.h.vst === 'wait' && x.h.img && (!sel || sel.has(x.h.id))), run = a.filter(x => x.h.vst === 'run').length;
     if (!todo.length) {
       if (!run) {
-        Q.on = false; Q.st = 'idle';
-        const k = counts();
-        if (k.ok && k.ok === k.a.length) { toast('🎬 Toutes les vidéos sont prêtes', 'ok'); log('ok', 'production vidéo terminée'); }
-        awake(); persist(); qui();
+        q.on = false; q.only = null;
+        q.st = a.some(x => x.h.vst === 'wait' && x.h.img) ? 'paused' : 'idle';
+        const k = counts(p);
+        if (k.ok && k.ok === k.a.length) { toast(p === P ? '🎬 Toutes les vidéos sont prêtes' : '🎬 « ' + nameOf(p) + ' » : toutes les vidéos sont prêtes', 'ok'); log('ok', 'production vidéo terminée'); }
+        awake(); persist(p); if (p === P) qui();
       }
       return;
     }
-    const vm = vmodel();
-    if (!vm) { Q.on = false; Q.st = 'paused'; toast('Aucun moteur vidéo : ajoutez une clé dans Réglages', 'er'); awake(); persist(); qui(); return; }
+    if (!vm) { q.on = false; q.st = 'paused'; toast('Aucun moteur vidéo : ajoutez une clé dans Réglages', 'er'); awake(); persist(p); if (p === P) qui(); return; }
     const max = VMODELS[vm].prov === 'fal' ? clamp(+CFG.falPar || 3, 1, 8) : Math.max(2, KEYS.list.filter(k => !k.off).length * 3);
     if (run >= max) return;
-    Q.busy = true;
-    const q = Q, next = todo[0];
-    launch(next.h, next.s, vm)
-      .catch(e => { log('er', 'file : ' + e.message); q.on = false; q.st = 'paused'; awake(); qui(); })
+    q.busy = true;
+    const next = todo[0];
+    launch(p, next.h, next.s, vm)
+      .catch(e => { log('er', 'file : ' + e.message); q.on = false; q.st = 'paused'; awake(); if (p === P) qui(); })
       .then(() => { q.busy = false; });
   }
 
-  function qstart() {
+  function qstart(ids) {
     if (!shots().some(x => x.h.img)) { toast('Il faut d’abord des images de plans', 'wr'); return; }
     if (!vmodel()) { toast('Aucun moteur vidéo : ajoutez une clé dans Réglages', 'er'); return; }
+    if (ids) only(Q, ids); else Q.only = null;
     Q.on = true;
     if (Q.st === 'paused' || Q.st === 'idle') Q.st = 'run';
     if (Q.st !== 'full') Q.next = 0;
@@ -1258,7 +1310,7 @@ const FILM = (() => {
   async function sessions() {
     let l = [];
     try { l = await DB.all('sessions'); } catch (e) { log('er', 'sessions : ' + e.message); }
-    l = (l || []).filter(p => p && p.id && Array.isArray(p.scenes)).sort((a, b) => (b.upd || 0) - (a.upd || 0));
+    l = (l || []).filter(p => p && p.id && Array.isArray(p.scenes) && !gone.has(p.id)).map(p => LIVE.get(p.id) || p).sort((a, b) => (b.upd || 0) - (a.upd || 0));
     if (P && !l.some(p => p.id === P.id)) l.unshift(P);
     const cover = p => {
       const pick = arr => arr.find(o => o && o.img && (o.img.t || o.img.u || o.img.d));
@@ -1283,6 +1335,7 @@ const FILM = (() => {
           '<div class="media" style="width:72px;flex:none;aspect-ratio:1">' + (cv ? '<img src="' + esc(cv) + '" alt="" loading="lazy" decoding="async">' : '<span>🎬</span>') + '</div>' +
           '<div class="grow" style="min-width:0"><b style="overflow-wrap:anywhere">' + esc(p.title || (p.genre && p.genre.name) || 'Sans titre') + '</b>' + (cur ? ' <span class="badge bok">en cours</span>' : '') +
           (nv ? ' <span class="badge bok">' + nv + ' NOUVEAU</span>' : '') +
+          (p.q && p.q.on ? ' <span class="badge baud">vidéos en production</span>' : p.q && p.q.st === 'paused' && sh.some(h => h.vst === 'wait' && h.img) ? ' <span class="badge bdim">production en pause</span>' : '') +
           '<div class="sub" style="font-size:12.5px">' + esc(when) + ' · ' + (p.scenes || []).length + ' scènes · ' + sh.filter(h => h.img).length + ' images · ' + sh.filter(h => h.video).length + ' vidéos' +
           ((p.exports || []).length ? ' · ' + p.exports.length + ' export(s) 4K' : '') + '</div></div></div>' +
           '<div class="row">' + (cur ? '' : btn('fsopen', 'Ouvrir', 'sm', 'data-id="' + esc(p.id) + '"')) + btn('fsdel', 'Supprimer', 'sm ghost', 'data-id="' + esc(p.id) + '"') + '</div></div>';
@@ -1290,9 +1343,18 @@ const FILM = (() => {
     openSheet(html);
   }
 
+  /* Film quitté : sauvegardé ; sa production (file + suivi) continue en arrière-plan. */
+  function leave(id) {
+    if (!P || P.id === id) return;
+    persist(P);
+    const k = counts(P);
+    if ((Q && Q.on) || k.run) toast('« ' + nameOf(P) + ' » : la production des vidéos continue en arrière-plan (' + k.ok + '/' + k.a.length + ')', 'ok');
+  }
+
   function newProject() {
     if (TASK) { toast('Une opération est en cours : patientez ou touchez Arrêter', 'wr'); return false; }
     if (playing) stopPlay();
+    leave('');
     setP(newP());
     page = S_GENRE;
     closeSheet();
@@ -1302,24 +1364,29 @@ const FILM = (() => {
 
   async function open(id) {
     if (TASK) { toast('Une opération est en cours : patientez ou touchez Arrêter', 'wr'); return false; }
-    let p = null;
-    try { p = await DB.get('sessions', id); } catch (e) { log('er', 'ouverture : ' + e.message); }
-    if (!p) { toast('Film introuvable', 'er'); return false; }
+    let p = LIVE.get(id) || null;
+    const fresh = !p;   // déjà en mémoire : son suivi tourne, on ne le relance surtout pas
+    if (!p) { try { p = await DB.get('sessions', id); } catch (e) { log('er', 'ouverture : ' + e.message); } }
+    if (!p || gone.has(id)) { toast('Film introuvable', 'er'); return false; }
     if (playing) stopPlay();
-    if (P && P.id !== id) persist(P);
+    leave(id);
     setP(p);
     page = clamp(+P.page || 0, 0, Math.min(NSTEP - 1, P.max || 0));
     closeSheet();
     render();
-    resumeAll();
+    if (fresh) resume(P);
     return true;
   }
 
   async function delSession(id) {
     const ok = await confirmSheet('Supprimer ce film ?', 'Le projet (textes, images, liens des vidéos) sera effacé de cet appareil. Les fichiers déjà enregistrés dans la galerie sont conservés.', 'Supprimer');
     if (!ok) return;
+    gone.add(id);
     clearTimeout(svT.get(id));
     svT.delete(id);
+    const lp = LIVE.get(id);
+    if (lp && lp.q) lp.q.on = false;
+    LIVE.delete(id);
     try { await DB.del('sessions', id); } catch (e) { log('er', 'suppression : ' + e.message); }
     if (P && P.id === id) {
       if (TASK) { TASK.stop = true; TASK = null; }
@@ -1328,6 +1395,7 @@ const FILM = (() => {
       page = S_GENRE;
       render();
     }
+    awake();
     toast('Film supprimé');
     sessions();
   }
@@ -1367,6 +1435,11 @@ const FILM = (() => {
     if (!(m.prov === 'fal' ? hasFal() : hasAgnes())) { toast('Ajoutez une clé ' + (m.prov === 'fal' ? 'fal.ai' : 'Agnès') + ' dans Réglages pour utiliser ' + m.name, 'wr'); return; }
     P.vmodel = el.dataset.m;
     if (m.durs.indexOf(+P.vdur) < 0) P.vdur = m.durs[0];
+    // File Agnès saturée : avec un modèle fal.ai, les plans en attente partent tout de suite.
+    if (Q.st === 'full' && m.prov !== 'agnes') {
+      unsat(Q);
+      if (Q.on) toast('Moteur vidéo : ' + m.name + ' — les plans en attente partent maintenant', 'ok');
+    }
     render(true);
   });
   A('fvdur', el => { P.vdur = +el.dataset.n || 0; render(true); });
@@ -1486,7 +1559,7 @@ const FILM = (() => {
   A('fcanceltask', () => { TASK = null; awake(); render(); });
 
   A('fqstart', () => qstart());
-  A('fqpause', () => { Q.on = false; Q.st = 'paused'; awake(); persist(); qui(); log('in', 'production vidéo en pause'); });
+  A('fqpause', () => { Q.on = false; Q.st = 'paused'; Q.only = null; awake(); persist(); qui(); log('in', 'production vidéo en pause'); });
   A('fqnow', () => { Q.on = true; Q.next = 0; Q.st = 'run'; log('in', 'test manuel de la file vidéo'); awake(); persist(); qui(); });
   A('fretry', async el => {
     const f = find(idOf(el));
@@ -1494,15 +1567,17 @@ const FILM = (() => {
     if (!f.o.img) { toast('Ce plan n’a pas d’image', 'wr'); return; }
     if (f.o.vst === 'ok' && !(await confirmSheet('Refaire la vidéo de ce plan ?', 'Une nouvelle vidéo sera générée à partir de l’image du plan.', 'Refaire'))) return;
     f.o.vst = 'wait'; f.o.err = ''; f.o.msg = '';
+    // En pause, seul ce plan repart : le reste de la production (payante) reste en pause.
+    only(Q, [f.o.id]);
     Q.on = true;
     if (Q.st === 'paused' || Q.st === 'idle') { Q.st = 'run'; Q.next = 0; }
     awake(); persist(); refresh(f.o.id); qui();
   });
   A('fretryall', () => {
-    let n = 0;
-    shots().forEach(x => { if (x.h.vst === 'er' && x.h.img) { x.h.vst = 'wait'; x.h.err = ''; n++; } });
-    if (!n) return;
-    qstart();
+    const ids = [];
+    shots().forEach(x => { if (x.h.vst === 'er' && x.h.img) { x.h.vst = 'wait'; x.h.err = ''; ids.push(x.h.id); } });
+    if (!ids.length) return;
+    qstart(ids);
     render(true);
   });
   A('fplay', () => play());
@@ -1639,7 +1714,10 @@ const FILM = (() => {
         if (e) e.textContent = fmtTime((Date.now() - TASK.start) / 1000);
         paintFeed();
       }
-      if (P) { qtick(); qui(); }
+      LIVE.forEach(p => { try { qtick(p); } catch (e) { log('er', 'file : ' + e.message); } });
+      if (P) qui();
+      // Films quittés dont plus rien ne tourne : libérés de la mémoire.
+      LIVE.forEach((p, id) => { if (p !== P && idle(p)) LIVE.delete(id); });
       if (EXP && EXP.active) {
         const el = document.getElementById('fiExpEl');
         if (el) el.textContent = fmtTime((Date.now() - EXP.start) / 1000);
@@ -1650,10 +1728,10 @@ const FILM = (() => {
   /* ═════════════════════════════════════════════════════════════════════
      REPRISE / RESTAURATION / RETOUR
      ═════════════════════════════════════════════════════════════════════ */
-  function resumeAll() {
-    if (!P) return;
-    const p = P;
-    if (Q) Q.busy = false;
+  /* Reprise du suivi d'un film relu en base (une seule fois : un film déjà suivi n'est jamais relancé). */
+  function resume(p) {
+    if (!p || RESUMED.has(p)) return;
+    RESUMED.add(p);
     shots(p).forEach(x => {
       if (x.h.vst === 'run') {
         try { Promise.resolve(resumeVideo(x.h, updFor(p, x.h))).catch(e => log('er', 'reprise vidéo : ' + e.message)); }
@@ -1661,18 +1739,29 @@ const FILM = (() => {
       }
     });
     awake();
-    qui();
+    if (p === P) qui();
   }
+  function resumeAll() { LIVE.forEach(resume); }
 
   async function restore() {
-    let p = null;
+    let p = null, bg = [];
     try {
       const last = await DB.get('config', 'last');
       if (last && last.v) p = await DB.get('sessions', last.v);
     } catch (e) { log('wr', 'dernier projet : ' + e.message); }
+    // Films quittés pendant leur production : leur file et leur suivi reprennent aussi.
+    // (Lu avant setP : plus aucune attente ensuite, la file ne part pas avant resumeAll.)
+    try {
+      bg = (await DB.all('sessions')).filter(x => x && x.id && Array.isArray(x.scenes) && !(p && x.id === p.id) &&
+        ((x.q && x.q.on) || shots(x).some(y => y.h.vst === 'run')));
+    } catch (e) { log('wr', 'films en arrière-plan : ' + e.message); }
     try { setP(p && typeof p === 'object' && p.id ? p : newP()); }
     catch (e) { log('er', 'projet illisible : ' + e.message); setP(newP()); }
     page = clamp(+P.page || 0, 0, Math.min(NSTEP - 1, P.max || 0));
+    bg.forEach(x => {
+      if (LIVE.has(x.id)) return;
+      try { live(x); log('in', 'production en arrière-plan : « ' + nameOf(x) + ' »'); } catch (e) { log('wr', 'film illisible : ' + e.message); }
+    });
     const scr = document.getElementById('scr-film');
     if (scr && scr.classList.contains('on')) render(true);
     return P;

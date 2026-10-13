@@ -11,7 +11,7 @@ const _st_msg = e => String((e && e.message) || e || 'erreur inconnue').slice(0,
 const _st_IR = ['16:9', '9:16', '1:1', '4:3', '3:4'];
 const _st_VR = ['16:9', '9:16', '1:1'];
 const _st_SEED = { '16:9': '3840×2160', '9:16': '2160×3840', '1:1': '4096×4096', '4:3': '4096×3072', '3:4': '3072×4096' };
-const _st_LAD = [1, 3, 6, 12, 24, 48];
+const _st_LAD = [1, 2, 3, 5, 8, 12];
 
 function _st_go(tab) {
   try { if (typeof APP !== 'undefined' && APP && typeof APP.go === 'function') { APP.go(tab); return; } } catch (e) { log('er', 'navigation : ' + e.message); }
@@ -80,12 +80,14 @@ function _st_fileName(it) {
   const base = san(_st_title(it)).replace(/[^\p{L}\p{N}]+/gu, '_').replace(/^_+|_+$/g, '').slice(0, 40);
   return 'CineGenesis_' + (base || it.id);
 }
+/* Fichier local (content://) : la WebView ne le lit pas directement, il passe par la route /media de l'app. */
+const _st_play = u => (/^content:/i.test(u || '') ? '/media?u=' + encodeURIComponent(u) : String(u || ''));
 /* Source lisible dans la visionneuse : la version 4K locale passe en premier dans l'application. */
 function _st_src(it) {
   if (!it) return '';
-  if (it.kind === 'film') return String(it.uri || it.u || '');
-  if (it.kind === 'video') return String((IS_APP && it.u4k) || it.video || it.video0 || '');
-  return String(it.u || '');
+  if (it.kind === 'film') return _st_play(it.uri || it.u);
+  if (it.kind === 'video') return _st_play((IS_APP && it.u4k) || it.video || it.video0);
+  return _st_play(it.u);
 }
 function _st_vidUrl(d) {
   if (!d) return '';
@@ -510,7 +512,7 @@ function _st_cost() {
     const m = _st_im();
     if (!m) return null;
     const c = IMODELS[m];
-    const res = m === 'seedream' ? _st_SEED[S.ratioI] : m === 'nanopro' ? '4K' : (CFG.agnes.imgSize || '4K');
+    const res = m === 'seedream' ? _st_SEED[S.ratioI] : m === 'nanopro' ? '4K' : (CFG.agnes.imgSize || '2K');
     const sum = (S.count > 1 ? S.count + ' × ' : '') + c.name + ' · ' + res + ' · ' + S.ratioI + (S.refs.length ? ' · ' + S.refs.length + ' réf.' : '');
     if (c.prov === 'agnes') return { txt: 'inclus', sum };
     return { txt: c.usd != null ? fmtUSD(c.usd * S.count) : 'tarif fal.ai', sum };
@@ -523,9 +525,9 @@ function _st_cost() {
   const im = S.refs.length ? null : _st_im();
   if (im && IMODELS[im].prov === 'fal') usd = usd == null || IMODELS[im].usd == null ? null : usd + IMODELS[im].usd;
   const topaz = !c.native && CFG.up4k !== false && hasFal();
-  const local = !c.native && !topaz && CFG.local4k !== false && IS_APP;
+  const local = !c.native && !topaz && CFG.local4k === true && IS_APP;
   const audio = c.audio ? _st_S.audio !== false : false;
-  const res = c.native ? '2160p natif' : topaz ? 'upscale Topaz 4K' : local ? '4K sur le téléphone' : (c.tag || '');
+  const res = c.native ? '2160p natif' : topaz ? 'upscale Topaz 4K' : local ? '4K sur le téléphone' : (String(c.tag || '').split('→')[0].trim() || 'HD');
   const sum = c.name + ' · ' + d + ' s · ' + S.ratioV + ' · ' + res + (audio ? ' · son' : '');
   let txt = usd == null ? 'tarif fal.ai' : usd === 0 ? 'inclus' : fmtUSD(usd);
   if (topaz) txt += ' + Topaz';
@@ -675,9 +677,9 @@ function _st_optsHtml() {
     }
     if (!c.native) {
       if (CFG.up4k !== false && hasFal()) h += '<div class="note">Rendu ' + esc(String(c.tag || '').split('→')[0].trim() || 'HD') + ', puis <b>upscale Topaz en 4K</b> automatique.</div>';
-      else if (CFG.local4k !== false && IS_APP) h += '<div class="note">Rendu HD, puis <b>conversion 4K sur votre téléphone</b> (enregistrée dans la galerie).</div>';
-      else if (CFG.local4k !== false) h += '<div class="note wr">La conversion 4K sur le téléphone n’est disponible que dans l’application Android ; ajoutez une clé fal.ai pour l’upscale Topaz.</div>';
-      else h += '<div class="note wr">Cette vidéo restera en HD : activez l’upscale Topaz (clé fal.ai) ou la conversion 4K sur le téléphone dans Réglages.</div>';
+      else if (CFG.local4k === true && IS_APP) h += '<div class="note">Rendu HD, puis <b>conversion 4K sur votre téléphone</b> (enregistrée dans la galerie).</div>';
+      else if (IS_APP) h += '<div class="note">Rendu HD, plus rapide. Pour la 4K : bouton <b>« Convertir en 4K »</b> dans la visionneuse, ou upscale Topaz avec une clé fal.ai.</div>';
+      else h += '<div class="note">Rendu HD. Pour la 4K : upscale Topaz avec une clé fal.ai, ou conversion dans l’application Android.</div>';
     }
   }
   return h;
@@ -690,7 +692,23 @@ function _st_genHtml() {
   return '<button type="button" class="btn pri xl" data-a="sgen" id="stGen"' + (any && c ? '' : ' disabled') + '>' +
     '<span>✦ Générer ' + (vid ? 'la vidéo' : _st_S.count > 1 ? 'les images' : 'l’image') + '</span>' +
     (c ? '<small style="font-weight:600;color:#fff;-webkit-text-fill-color:#fff;opacity:.85;margin-left:8px">' + esc(c.txt) + '</small>' : '') + '</button>' +
-    '<p class="sub" id="stGenHint" style="text-align:center;font-size:12.5px;margin:0">' + _st_genHintTxt(c, any) + '</p>';
+    '<p class="sub" id="stGenHint" style="text-align:center;font-size:12.5px;margin:0">' + _st_genHintTxt(c, any) + '</p>' +
+    '<div id="stSat">' + _st_satHtml() + '</div>';
+}
+/* Vidéos Agnès en attente (file saturée) : on propose fal.ai pour générer tout de suite. */
+const _st_satList = () => GAL.items.filter(x => x.src === 'studio' && x.kind === 'video' && x.sat && x.vst === 'wait' && !x._del);
+const _st_falVm = () => [_st_S.vmodel, CFG.eng && CFG.eng.video].find(id => VMODELS[id] && VMODELS[id].prov === 'fal') || 'kling4k';
+function _st_satHtml() {
+  const w = _st_satList();
+  if (!w.length) return '';
+  const t = Math.min.apply(null, w.map(x => +x.retryAt || Date.now()));
+  const fal = hasFal();
+  return '<div class="note wr">⏳ <b>Agnès saturée</b> : ' + (w.length > 1 ? w.length + ' vidéos partiront' : 'la vidéo partira') +
+    ' automatiquement (nouvel essai à ' + esc(_st_hhmm(t)) + '). Pour générer tout de suite, ' +
+    (fal ? 'passez sur <b>' + esc(VMODELS[_st_falVm()].name) + '</b> (fal.ai, payant).' : 'ajoutez une clé <b>fal.ai</b>.') +
+    '<div class="row" style="margin-top:8px">' + (fal
+      ? '<button type="button" class="btn sm" data-a="sfal">⚡ Générer maintenant avec ' + esc(VMODELS[_st_falVm()].name) + '</button>'
+      : '<button type="button" class="btn sm" data-a="tab" data-tab="settings">Ajouter une clé fal.ai</button>') + '</div></div>';
 }
 function _st_genHintTxt(c, any) {
   if (!any) return 'Ajoutez une clé fal.ai ou Agnès dans Réglages pour générer.';
@@ -701,6 +719,8 @@ function _st_genHintTxt(c, any) {
 function _st_genHint() {
   const el = document.getElementById('stGenHint');
   if (el) el.innerHTML = _st_genHintTxt(_st_cost(), hasFal() || hasAgnes());
+  const sa = document.getElementById('stSat');
+  if (sa) { const h = _st_satHtml(); if (sa._h !== h) { sa._h = h; sa.innerHTML = h; } }
 }
 
 function _st_feedHtml() {
@@ -777,13 +797,16 @@ async function _st_runImage(it) {
 async function _st_upscaleImage(src) {
   if (!src || !src.u) return;
   if (!hasFal()) { toast('L’upscale 4K des images nécessite une clé fal.ai (Réglages)', 'wr'); return; }
+  if (GAL.items.some(x => x.from === src.id && x.st === 'run')) { toast('Upscale 4K déjà en cours pour cette image'); return; }
   const it = {
     id: _st_newId('s'), kind: 'image', src: 'studio', prompt: src.prompt || '', style: src.style || '', model: 'topaz', ratio: src.ratio || '',
     created: Date.now(), st: 'run', msg: 'upscale 4K…', err: '', u: '', t: src.t || '', w: src.w || 0, h: src.h || 0, from: src.id, refs: [],
   };
   GAL.add(it);
+  _st_touch(src);
   toast('Upscale 4K lancé', 'ok');
   await _st_doUpscale(it, src);
+  _st_touch(src);
 }
 async function _st_doUpscale(it, src) {
   it.st = 'run'; it.err = ''; it.msg = 'upscale 4K…';
@@ -862,15 +885,16 @@ async function _st_launch(it) {
   if (it._del) return;
   if (it.vm && VMODELS[it.vm]) it.model = it.vm;
   if (r === 'full' || r === 'later') _st_backoff(it, r);
-  else if (r === 'ok') it.tries = 0;
+  else if (r === 'ok') { it.tries = 0; it.sat = false; }
   _st_sync(it);
   GAL.update(it);
 }
 
 function _st_backoff(it, why) {
   it.tries = (+it.tries || 0) + 1;
+  it.sat = why === 'full';
   if (it.tries > _st_LAD.length) {
-    it.vst = 'er'; it.st = 'er'; it.msg = '';
+    it.vst = 'er'; it.st = 'er'; it.msg = ''; it.sat = false;
     it.err = 'Serveurs saturés depuis longtemps : réessayez plus tard';
     GAL.update(it);
     return;
@@ -878,7 +902,7 @@ function _st_backoff(it, why) {
   const min = _st_LAD[it.tries - 1];
   it.retryAt = Date.now() + min * 60000;
   it.vst = 'wait'; it.st = 'run';
-  it.msg = (why === 'full' ? 'serveurs saturés' : 'nouvel essai prévu') + ' · reprise à ' + _st_hhmm(it.retryAt);
+  it.msg = (why === 'full' ? 'Agnès saturée — nouvel essai à ' : 'nouvel essai à ') + _st_hhmm(it.retryAt);
   log('wr', 'vidéo en attente (' + why + ') → nouvel essai dans ' + min + ' min');
   _st_sched(it);
 }
@@ -904,7 +928,7 @@ function _st_size4k(it) {
 /* Filet 4K local : export natif d'un seul clip (file partagée, un export à la fois). */
 const _st_l4kQ = new Set();
 function _st_autoL4k(it) {
-  if (!IS_APP || CFG.local4k === false) return;
+  if (!IS_APP || CFG.local4k !== true) return;
   if (!it || it.kind !== 'video' || it.vst !== 'ok' || !it.video || it.u4k || _st_is4k(it)) return;
   if (it.upv && it.upv.st === 'run') return;
   if (it.l4k && it.l4k.st !== 'run') return;
@@ -995,7 +1019,7 @@ async function _st_topazVideo(it) {
 }
 
 function _st_retry(it) {
-  if (!it) return;
+  if (!it || it.st === 'run') return;
   haptic('tap');
   if (it.kind === 'image') {
     if (it.model === 'topaz') {
@@ -1006,7 +1030,7 @@ function _st_retry(it) {
     return;
   }
   if (it.kind === 'video') {
-    it.tries = 0; it.err = ''; it.retryAt = 0;
+    it.tries = 0; it.err = ''; it.retryAt = 0; it.sat = false;
     if (it.ref) _st_launch(it); else _st_runVideo(it);
   }
 }
@@ -1285,7 +1309,26 @@ const STUDIO = (() => {
     _st_draft();
     _st_renderForm();
   };
-  ACT.sgen = () => _st_generate();
+  ACT.sgen = () => {
+    // Bouton verrouillé un instant : un appui impatient ne lance pas une seconde génération.
+    const b = document.getElementById('stGen');
+    if (b) {
+      b.disabled = true;
+      setTimeout(() => { const g = document.getElementById('stGenBox'); if (g) g.innerHTML = _st_genHtml(); }, 1500);
+    }
+    return _st_generate();
+  };
+  ACT.sfal = () => {
+    if (!hasFal()) { _st_go('settings'); return; }
+    const vm = _st_falVm(), w = _st_satList();
+    w.forEach(it => {
+      it.spec = Object.assign({}, it.spec || {}, { model: vm });
+      it.model = vm; it.sat = false; it.tries = 0; it.retryAt = 0;
+      _st_launch(it);
+    });
+    if (w.length) { toast(w.length + ' vidéo(s) envoyée(s) à ' + VMODELS[vm].name, 'ok'); log('in', 'studio : Agnès saturée → ' + VMODELS[vm].name); }
+    _st_genHint();
+  };
   ACT.sretry = (el, e) => {
     if (e && e.stopPropagation) e.stopPropagation();
     _st_retry(GAL.get(el.dataset.id));
@@ -1416,7 +1459,10 @@ const VIEW = (() => {
     if (it.kind === 'image') {
       btn('vsave', '⤓ Enregistrer', 'pri');
       btn('vshare', '↗ Partager');
-      if (!_st_is4k(it)) btn('vup', 'Upscale 4K', 'gold');
+      if (!_st_is4k(it)) {
+        if (GAL.items.some(x => x.from === it.id && x.st === 'run')) btn('vup', '<i class="spin"></i> Upscale 4K…', 'gold', true);
+        else btn('vup', 'Upscale 4K', 'gold');
+      }
       btn('vanim', '▶ Animer');
       if (it.prompt) btn('vprompt', '↺ Réutiliser le prompt');
       btn('vref', '＋ Référence');
@@ -1432,7 +1478,7 @@ const VIEW = (() => {
       if (up) btn('vup', '<i class="spin"></i> Topaz 4K…', 'gold', true);
       else if (hasFal()) btn('vup', 'Upscale 4K', 'gold', l4);
     }
-    if (IS_APP) btn('vl4k', l4 ? '<i class="spin"></i> Export 4K · ' + (it.l4k.p > 0 ? it.l4k.p + ' %' : 'en file') : 'Export 4K local', '', l4 || up);
+    if (IS_APP && (l4 || !_st_is4k(it))) btn('vl4k', l4 ? '<i class="spin"></i> Conversion 4K · ' + (it.l4k.p > 0 ? it.l4k.p + ' %' : 'en file') : 'Convertir en 4K (sur le téléphone)', '', l4 || up);
     if (it.prompt) btn('vprompt', '↺ Réutiliser le prompt');
     if (it.ref) btn('vref', '＋ Image de départ en référence');
     btn('vdel', 'Supprimer');
@@ -1453,7 +1499,7 @@ const VIEW = (() => {
     if (it.line) h += '<span class="lab">Réplique</span><p>« ' + esc(it.line) + ' »</p>';
     if (it.st === 'ok' && it.err) h += '<div class="note wr">' + esc(it.err) + '</div>';
     if (it.l4k && it.l4k.st === 'er') {
-      h += '<div class="note wr">Conversion 4K sur le téléphone : ' + esc(it.l4k.err || 'échec') + '.' + (IS_APP ? ' Vous pouvez relancer « Export 4K local ».' : '') + '</div>';
+      h += '<div class="note wr">Conversion 4K sur le téléphone : ' + esc(it.l4k.err || 'échec') + '.' + (IS_APP ? ' Vous pouvez relancer « Convertir en 4K ».' : '') + '</div>';
     }
     if (it.u4k && it.kind === 'video') h += '<div class="note ok">Version ' + esc(resLabel(it.vw, it.vh) || '4K') + ' enregistrée dans la galerie du téléphone (dossier CineGenesis).</div>';
     let rows = '';
@@ -1511,7 +1557,7 @@ const VIEW = (() => {
       vid.addEventListener('error', () => {
         // La version 4K locale est illisible ici : repli sur le fichier distant.
         const x = cur();
-        if (x && x.id === it.id && it.u4k && vid.getAttribute('src') === it.u4k && it.video) { vid.src = it.video; return; }
+        if (x && x.id === it.id && it.u4k && vid.getAttribute('src') === _st_play(it.u4k) && it.video) { vid.src = it.video; return; }
         if (x && x.id === it.id && x.kind === 'film' && IS_APP) {
           const n = document.getElementById('vInfo');
           if (n && !n.querySelector('[data-vplay]')) n.insertAdjacentHTML('afterbegin', '<div class="note" data-vplay="1">Lecture intégrée impossible : touchez « Ouvrir » pour utiliser le lecteur du téléphone.</div>');
@@ -1654,6 +1700,7 @@ const VIEW = (() => {
     if (it.kind === 'image') { _st_upscaleImage(it); return; }
     if (it.kind !== 'video' || !it.video) return;
     if (_st_is4k(it)) { toast('Cette vidéo est déjà en 4K'); return; }
+    if (it.upv && it.upv.st === 'run') { toast('Upscale 4K déjà en cours pour cette vidéo'); return; }
     if (hasFal()) { toast('Upscale Topaz 4K lancé', 'ok'); _st_topazVideo(it); return; }
     if (IS_APP) { _st_local4k(it, true); return; }
     toast('L’upscale 4K nécessite une clé fal.ai (ou l’application Android pour la conversion locale)', 'wr');

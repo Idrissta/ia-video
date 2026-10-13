@@ -85,7 +85,7 @@ const APP = (() => {
   const PRESETS = [
     { id: 'deepseek', name: 'DeepSeek', url: 'https://api.deepseek.com/v1', model: 'deepseek-chat' },
     { id: 'openai', name: 'OpenAI', url: 'https://api.openai.com/v1', model: 'gpt-4o-mini' },
-    { id: 'openrouter', name: 'OpenRouter', url: 'https://openrouter.ai/api/v1', model: 'google/gemini-2.5-flash' },
+    { id: 'openrouter', name: 'OpenRouter', url: 'https://openrouter.ai/api/v1', model: 'google/gemini-3.5-flash' },
   ];
   const TXTNAME = { agnes: 'Agnès', oai: 'API compatible OpenAI', fal: 'fal.ai' };
   const OVR = () => [
@@ -176,7 +176,7 @@ const APP = (() => {
         '<div class="row" id="cfgKeyList">' + keyChips() + '</div>' +
         '<div class="grid2">' +
           '<label class="field"><span class="lab">Type de clés</span>' + sel('agnes.plan', [['free', 'Gratuites'], ['plan', 'Payantes (Token Plan)']], CFG.agnes.plan) + '</label>' +
-          '<label class="field"><span class="lab">Taille des images</span>' + sel('agnes.imgSize', [['4K', '4K (recommandé)'], ['2K', '2K'], ['1K', '1K']], CFG.agnes.imgSize) + '</label>' +
+          '<label class="field"><span class="lab">Taille des images</span>' + sel('agnes.imgSize', [['2K', '2K (rapide, recommandé)'], ['4K', '4K (plus lent avec les clés gratuites)'], ['1K', '1K']], CFG.agnes.imgSize) + '</label>' +
           '<label class="field"><span class="lab">Résolution vidéo</span>' + sel('agnes.vidRes', [['1080', '1080p'], ['720', 'Résolution d’origine']], CFG.agnes.vidRes) + '</label>' +
         '</div>' +
         '<div class="row"><button type="button" class="btn sm" data-a="cfgTestAgnes">Tester mes clés</button><span class="sub" id="cfgAgSt"></span></div>' +
@@ -207,7 +207,7 @@ const APP = (() => {
       '<div class="card stack">' +
         '<div class="h2">Qualité <span class="badge b4k">4K</span></div>' +
         sw('up4k', CFG.up4k, 'Upscale IA automatique en 4K (Topaz)', 'Pour les modèles 1080p ; nécessite fal.ai.') +
-        sw('local4k', CFG.local4k, 'Garantir la 4K sur le téléphone', 'Si une vidéo sort sous la 4K, elle est agrandie en 3840×2160 sur l’appareil.') +
+        sw('local4k', CFG.local4k, 'Convertir automatiquement chaque vidéo en 4K sur le téléphone', 'Calcul lourd : à activer seulement si besoin. Sinon, bouton « Convertir en 4K » dans la visionneuse.') +
         sw('audio', CFG.audio, 'Son natif des vidéos', 'Ambiance, bruitages et répliques générés avec l’image.') +
         '<div class="grid2">' +
           '<label class="field"><span class="lab">Vidéos fal.ai en parallèle</span>' + sel('falPar', [1, 2, 3, 4, 6, 8].map(n => [n, String(n)]), CFG.falPar) + '</label>' +
@@ -270,6 +270,8 @@ const APP = (() => {
   function onCfg(el, final) {
     const path = el.dataset.cfg;
     setPath(path, readField(el));
+    if (path === 'local4k') CFG.local4kSet = true;
+    if (path === 'agnes.imgSize') CFG.agnes.sizeSet = true;
     if (path === 'exp.sharpen') { const v = document.getElementById('cfgSharpV'); if (v) v.textContent = el.value; }
     if (path.startsWith('agnes.')) syncKeys();
     saveCfg();
@@ -394,11 +396,19 @@ const APP = (() => {
   };
 
   /* ───────────────────────── Délégation des évènements ───────────────────────── */
+  // Actions payantes : un double appui (ou un appui impatient) ne lance pas une seconde tâche.
+  const PAID = { sgen: 1, vup: 1, sretry: 1, vl4k: 1, sfal: 1, fretry: 1, fretryall: 1, fqstart: 1 };
+  let lastPaid = { k: '', t: 0 };
   document.addEventListener('click', e => {
     const b = e.target && e.target.closest ? e.target.closest('[data-a]') : null;
     if (!b || b.disabled || b.getAttribute('aria-disabled') === 'true') return;
     const f = ACT[b.dataset.a];
     if (typeof f !== 'function') { log('wr', 'action inconnue : ' + b.dataset.a); return; }
+    if (PAID[b.dataset.a]) {
+      const k = b.dataset.a + ':' + (b.dataset.id || '');
+      if (k === lastPaid.k && Date.now() - lastPaid.t < 1500) return;
+      lastPaid = { k, t: Date.now() };
+    }
     try {
       const r = f(b, e);
       if (r && typeof r.catch === 'function') r.catch(er => { log('er', 'action ' + b.dataset.a + ' : ' + er.message); toast('Erreur : ' + er.message, 'er'); });
