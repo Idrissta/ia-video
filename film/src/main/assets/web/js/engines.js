@@ -8,7 +8,7 @@
 const IMODELS = {
   seedream: { name: 'Seedream 4.5', tag: '4K natif', prov: 'fal', t2i: 'fal-ai/bytedance/seedream/v4.5/text-to-image', edit: 'fal-ai/bytedance/seedream/v4.5/edit', usd: 0.04, desc: 'Photoréalisme extrême, jusqu’à 4096 px' },
   nanopro: { name: 'Nano Banana Pro', tag: '4K', prov: 'fal', t2i: 'fal-ai/nano-banana-pro', edit: 'fal-ai/nano-banana-pro/edit', desc: 'Google · cohérence parfaite des personnages' },
-  agnes: { name: 'Agnès Image 2.5', tag: '2K', prov: 'agnes', desc: 'Inclus avec vos clés Agnès' },
+  agnes: { name: 'Agnès Image 2.5', tag: '4K', prov: 'agnes', desc: 'Inclus avec vos clés Agnès · jusqu’à 4K' },
 };
 
 const VMODELS = {
@@ -16,7 +16,7 @@ const VMODELS = {
   ltx4k: { name: 'LTX-2.3 Pro · 2160p', tag: '4K natif', prov: 'fal', ep: 'fal-ai/ltx-2.3/image-to-video', native: true, audio: true, durs: [6, 8, 10], usd: 0.24, desc: '4K natif avec audio, le plus économique' },
   klingpro: { name: 'Kling 3.0 Pro', tag: '1080p → 4K', prov: 'fal', ep: 'fal-ai/kling-video/v3/pro/image-to-video', audio: true, durs: [5, 10], usd: 0.168, desc: 'Mouvements Kling + upscale Topaz 4K' },
   veo31: { name: 'Veo 3.1', tag: '1080p → 4K', prov: 'fal', ep: 'fal-ai/veo3.1/image-to-video', audio: true, durs: [8], desc: 'Google · dialogues parlés synchronisés + upscale 4K' },
-  agnes: { name: 'Agnès Vidéo', tag: '720p → 4K', prov: 'agnes', durs: [10], desc: 'Inclus avec vos clés Agnès · 4K via Topaz ou export local' },
+  agnes: { name: 'Agnès Vidéo', tag: '1080p → 4K', prov: 'agnes', durs: [10], desc: 'Inclus avec vos clés Agnès · 4K via Topaz ou sur le téléphone' },
 };
 
 const STYLES = [
@@ -468,14 +468,18 @@ async function _en_agnesImg(prompt, refs, ratio) {
     if (imgs.length) body.extra_body.image = imgs;
     return call('img', API + '/images/generations', body, 3);
   };
-  const size = CFG.agnes.imgSize || '2K';
+  // Taille demandée (4K par défaut) puis repli 2K → 1K si Agnès la refuse ; la taille acceptée est mémorisée.
+  const sizes = ['4K', '2K', '1K'];
+  let i = Math.max(0, sizes.indexOf(CFG.agnes.imgSize || '4K'));
   let r;
-  try { r = await mk(size); } catch (e) {
-    if (e.status !== 400 || size === '1K') throw e;
-    log('wr', 'taille ' + size + ' refusée par Agnès → 1K');
-    CFG.agnes.imgSize = '1K';
-    saveCfg();
-    r = await mk('1K');
+  for (;;) {
+    try { r = await mk(sizes[i]); break; } catch (e) {
+      if ((e.status !== 400 && e.status !== 422) || i >= sizes.length - 1) throw e;
+      log('wr', 'taille ' + sizes[i] + ' refusée par Agnès → ' + sizes[i + 1]);
+      i++;
+      CFG.agnes.imgSize = sizes[i];
+      saveCfg();
+    }
   }
   const d = await r.json();
   const it = d && d.data && d.data[0];
@@ -551,7 +555,9 @@ async function upscaleImage(url, opt) {
    VIDÉOS — corps, lancement, suivi, upscale Topaz, reprise
    ═════════════════════════════════════════════════════════════════════ */
 const _en_NEG = 'blur, distortion, low quality, watermark, text, subtitles';
-const _en_dims = r => (r === '9:16' ? [480, 854] : r === '1:1' ? [640, 640] : [854, 480]);
+const _en_dims = (r, hd) => (hd
+  ? (r === '9:16' ? [1080, 1920] : r === '1:1' ? [1080, 1080] : [1920, 1080])
+  : (r === '9:16' ? [480, 854] : r === '1:1' ? [640, 640] : [854, 480]));
 function _en_dur(id, dur) {
   const ds = (VMODELS[id] && VMODELS[id].durs) || [5];
   const d = +dur || ds[0];
@@ -571,9 +577,10 @@ function videoBody(id, s) {
   } else if (id === 'veo31') {
     b = { prompt: s.prompt, image_url: s.image, duration: '8s', resolution: '1080p', generate_audio: audio, aspect_ratio: ratio === '9:16' ? '9:16' : ratio === '16:9' ? '16:9' : 'auto' };
   } else if (id === 'agnes') {
-    const D = _en_dims(ratio);
+    const hd = (s.res || CFG.agnes.vidRes) !== '720';
+    const D = _en_dims(ratio, hd);
     b = KEYS.plan === 'plan'
-      ? { model: VID.plan, prompt: san(s.prompt), seconds: '10', mode: 'keyframe', size: '720P', aspect_ratio: ratio, first_frame: s.image }
+      ? { model: VID.plan, prompt: san(s.prompt), seconds: '10', mode: 'keyframe', size: hd ? '1080P' : '720P', aspect_ratio: ratio, first_frame: s.image }
       : { model: VID.free, prompt: san(s.prompt), num_frames: 97, frame_rate: 12, width: D[0], height: D[1], image: s.image };
   } else {
     b = { prompt: s.prompt, image_url: s.image, duration: dur, generate_audio: audio };
@@ -756,12 +763,20 @@ async function _en_agnesLaunch(o, spec, ratio, U, upd) {
   let fr = String(spec.image);
   if (!/^(https?:|data:)/i.test(fr)) fr = (await refData(fr, 1024)) || '';
   if (!fr) { o.vst = 'er'; o.msg = ''; o.err = 'image de départ illisible'; U(true); return 'err'; }
-  const body = videoBody('agnes', Object.assign({}, spec, { image: fr, ratio }));
+  const send = res => xfetch(API + '/videos', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + k.k },
+    body: JSON.stringify(videoBody('agnes', Object.assign({}, spec, { image: fr, ratio, res }))) });
   o.msg = 'envoi…';
   U(false);
   let r;
   try {
-    r = await xfetch(API + '/videos', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + k.k }, body: JSON.stringify(body) });
+    r = await send(CFG.agnes.vidRes);
+    // Résolution 1080p refusée : un seul nouvel essai dans la résolution d'origine, mémorisée ensuite.
+    if ((r.status === 400 || r.status === 422) && CFG.agnes.vidRes !== '720') {
+      log('wr', 'vidéo 1080p refusée par Agnès (HTTP ' + r.status + ') → résolution d’origine');
+      CFG.agnes.vidRes = '720';
+      saveCfg();
+      r = await send('720');
+    }
   } catch (e) {
     o.vst = 'wait'; o.msg = ''; log('wr', e.message); U(true); return 'later';
   }

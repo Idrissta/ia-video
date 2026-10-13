@@ -535,11 +535,12 @@ const DB = (() => {
    RÉGLAGES
    ═════════════════════════════════════════════════════════════════════ */
 const _co_cfg0 = () => ({
-  agnes: { keys: [], plan: 'free', imgSize: '2K' },
+  agnes: { keys: [], plan: 'free', imgSize: '4K', vidRes: '1080' },
   fal: { key: '' },
   oai: { url: '', model: '', key: '' },
   eng: { text: 'auto', image: 'auto', video: 'auto' },
   up4k: true,
+  local4k: true,
   audio: true,
   falPar: 3,
   exp: { codec: 'auto', mbps: 60, sharpen: 35 },
@@ -563,11 +564,13 @@ function _co_normCfg() {
   const keys = Array.isArray(CFG.agnes.keys) ? CFG.agnes.keys : String(CFG.agnes.keys || '').split(/[\s,;]+/);
   CFG.agnes.keys = Array.from(new Set(keys.map(s => String(s).trim()).filter(s => s.length >= 8)));
   if (CFG.agnes.plan !== 'plan') CFG.agnes.plan = 'free';
-  if (['1K', '2K', '4K'].indexOf(CFG.agnes.imgSize) < 0) CFG.agnes.imgSize = '2K';
+  if (['1K', '2K', '4K'].indexOf(CFG.agnes.imgSize) < 0) CFG.agnes.imgSize = '4K';
+  if (CFG.agnes.vidRes !== '720') CFG.agnes.vidRes = '1080';
   CFG.fal.key = String(CFG.fal.key || '').trim();
   ['url', 'model', 'key'].forEach(k => { CFG.oai[k] = String(CFG.oai[k] || '').trim(); });
   ['text', 'image', 'video'].forEach(k => { if (!CFG.eng[k]) CFG.eng[k] = 'auto'; });
   CFG.up4k = CFG.up4k !== false;
+  CFG.local4k = CFG.local4k !== false;
   CFG.audio = CFG.audio !== false;
   CFG.falPar = clamp(Math.round(+CFG.falPar || 3), 1, 8);
   if (['auto', 'hevc', 'avc'].indexOf(CFG.exp.codec) < 0) CFG.exp.codec = 'auto';
