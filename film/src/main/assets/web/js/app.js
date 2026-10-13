@@ -156,7 +156,7 @@ const APP = (() => {
     el.innerHTML = '<div class="wrap stack">' +
       '<div class="hero"><div class="lab">Réglages</div><div class="h1">Vos <span class="gt">moteurs IA</span></div>' +
       '<p class="sub">Vos clés restent sur ce téléphone. fal.ai donne accès aux meilleurs modèles du moment, en vraie 4K.</p></div>' +
-      (any ? '' : '<div class="note">👋 Bienvenue ! Ajoutez une clé <b>fal.ai</b> (recommandé, qualité 4K) ou vos clés <b>Agnès</b> pour commencer à créer.</div>') +
+      (any ? '' : '<div class="note" id="cfgWelcome">👋 Bienvenue ! Ajoutez une clé <b>fal.ai</b> (recommandé, qualité 4K) ou vos clés <b>Agnès</b> pour commencer à créer.</div>') +
 
       /* fal.ai */
       '<div class="card stack">' +
@@ -245,6 +245,8 @@ const APP = (() => {
     if (ab) { ab.className = 'badge ' + (ag ? 'bok' : 'bdim'); ab.textContent = ag ? KEYS.list.filter(k => !k.off).length + ' clé(s)' : 'Non configurée'; }
     const kl = document.getElementById('cfgKeyList');
     if (kl) kl.innerHTML = keyChips();
+    const wn = document.getElementById('cfgWelcome');
+    if (wn) wn.hidden = fal || ag;
     const tu = document.getElementById('cfgTxtUsed');
     if (tu) tu.textContent = tp ? TXTNAME[tp] : 'aucune';
     updateChip();
