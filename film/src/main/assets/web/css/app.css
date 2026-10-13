@@ -1542,7 +1542,7 @@ details[open] > summary { margin-bottom: 10px; }
 #sheet, .sheet {
   position: fixed;
   inset: 0;
-  z-index: 60;
+  z-index: 85; /* au-dessus de la visionneuse (80) : confirmations ouvertes depuis celle-ci */
   display: flex;
   align-items: flex-end;
   justify-content: center;
