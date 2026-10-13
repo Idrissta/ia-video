@@ -49,7 +49,7 @@ L'application n'embarque aucune clé : ajoutez les vôtres dans **Réglages** (e
 | Fournisseur | Utilisation | Où l'obtenir |
 | --- | --- | --- |
 | **fal.ai** (recommandé) | Images et vidéos 4K (Seedream, Nano Banana Pro, Kling 3.0, LTX-2.3, Veo 3.1, Topaz) et IA texte | [fal.ai/dashboard/keys](https://fal.ai/dashboard/keys) |
-| **Agnès** | Clés de l'application d'origine (texte, images 2K, vidéos 720p) | votre compte Agnès |
+| **Agnès** | Clés de l'application d'origine : texte, images jusqu'en 4K, vidéos 1080p (repli automatique si une taille est refusée) | votre compte Agnès |
 | Compatible OpenAI | IA texte au choix : DeepSeek, OpenAI, OpenRouter… | le site du fournisseur |
 
 Les modèles fal.ai sont payants à l'usage (à titre indicatif : Kling 3.0 4K ≈ 0,42 $/s, LTX-2.3 en 2160p ≈ 0,24 $/s,
@@ -59,8 +59,8 @@ Seedream 4.5 ≈ 0,04 $/image) ; l'application affiche une estimation avant chaq
 
 1. **4K natif** quand le modèle le permet (Kling 3.0 4K, LTX-2.3 2160p, Seedream 4.5 en 3840×2160 / 4096×4096).
 2. Sinon, **upscale IA Topaz** sur fal.ai (option « Upscale automatique en 4K », activée par défaut).
-3. Enfin, le **montage local** produit toujours un fichier 3840×2160 (ou 2160×3840 en portrait), quelle que soit la
-   source. Si le téléphone ne sait pas encoder la 4K, l'application l'indique et exporte dans la meilleure définition possible.
+3. Enfin, sur le téléphone : l'option « Garantir la 4K » agrandit automatiquement en 3840×2160 toute vidéo du Studio
+   restée sous la 4K, et le **montage du film** produit toujours un fichier 3840×2160 (ou 2160×3840 en portrait). Si le téléphone ne sait pas encoder la 4K, l'application l'indique et exporte dans la meilleure définition possible.
 
 ### Architecture
 
