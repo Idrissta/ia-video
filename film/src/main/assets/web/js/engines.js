@@ -720,7 +720,7 @@ async function followVideo(o, upd) {
       if (!need) { await _en_finish(o, U, url, '', t, dim, false); return; }
       const f = dim && dim.w > 0 && dim.h > 0
         ? Math.round(clamp(2160 / Math.min(dim.w, dim.h), 1.01, 4) * 100) / 100
-        : (t.prov === 'agnes' ? 3 : 2);
+        : (t.prov === 'agnes' && CFG.agnes.vidRes === '720' ? 3 : 2);
       o.msg = 'upscale 4K · envoi…';
       U(false);
       try {
