@@ -84,8 +84,8 @@ const ok = (v, m) => { if (!v) throw new Error(m || 'condition fausse'); };
 
 function resetCfg(over) {
   run(`(() => {
-    const d = { agnes:{keys:[],plan:'free',imgSize:'4K',vidRes:'1080'}, fal:{key:''}, oai:{url:'',model:'',key:''},
-      eng:{text:'auto',image:'auto',video:'auto'}, up4k:true, local4k:true, audio:true, falPar:3,
+    const d = { agnes:{keys:[],plan:'free',imgSize:'2K',vidRes:'1080'}, fal:{key:''}, oai:{url:'',model:'',key:''},
+      eng:{text:'auto',image:'auto',video:'auto'}, up4k:true, local4k:false, audio:true, falPar:3,
       exp:{codec:'auto',mbps:60,sharpen:35}, ovr:{} };
     Object.keys(CFG).forEach(k => delete CFG[k]);
     Object.assign(CFG, JSON.parse(JSON.stringify(d)));
@@ -186,7 +186,8 @@ test('Estimations de prix, libellés de définition et 4K', () => {
   eq(est('kling4k', 5), 2.1);
   eq(est('ltx4k', 10), 2.4);
   eq(est('agnes', 10), 0);
-  eq(est('veo31', 8), null);
+  eq(est('veo31', 8), 3.2, 'Veo 3.1 : 0,40 $/s avec le son');
+  eq(est('veo31', 8, false), 1.6, 'tarif sans son');
   const rl = G('resLabel');
   eq([rl(3840, 2160), rl(2160, 3840), rl(2560, 1440), rl(1920, 1080), rl(1280, 720), rl(854, 480), rl(0, 0)],
     ['4K UHD', '4K UHD', '1440p', '1080p', '720p', '854×480', '']);
@@ -262,7 +263,7 @@ test('Upscale Topaz en échec : la vidéo d’origine est gardée', async () => 
   ok(/upscale 4K échoué/.test(o.err), o.err);
 });
 
-test('Agnès : image 4K refusée → repli 2K puis 1K, taille mémorisée', async () => {
+test('Agnès : image 2K refusée → repli 1K, taille mémorisée après succès', async () => {
   resetCfg({ agnes: { keys: ['sk-agnes-0001'] } });
   route = req => {
     if (/images\/generations$/.test(req.url)) return req.body.size === '1K' ? [200, { data: [{ url: 'https://a/i.jpg' }] }] : [400, { error: 'size' }];
@@ -270,7 +271,7 @@ test('Agnès : image 4K refusée → repli 2K puis 1K, taille mémorisée', asyn
   };
   const r = await run(`genImage({ prompt: 'x', ratio: '16:9' })`);
   eq([r.u, r.m, G('CFG').agnes.imgSize], ['https://a/i.jpg', 'agnes', '1K']);
-  eq(requests.filter(q => /images/.test(q.url)).map(q => q.body.size), ['4K', '2K', '1K']);
+  eq(requests.filter(q => /images/.test(q.url)).map(q => q.body.size), ['2K', '1K']);
 });
 
 test('Agnès : vidéo 1080p refusée → résolution d’origine, puis suivi jusqu’à la vidéo', async () => {
@@ -319,6 +320,73 @@ test('Sans aucune clé : erreur explicite', async () => {
   const o = {};
   eq(await run(`(o => startVideo(o, { prompt: 'p', image: 'x' }, () => {}))`)(o), 'err');
   ok(/Réglages/.test(o.err), o.err);
+});
+
+test('Agnès : un refus sans rapport avec la taille ne la dégrade pas', async () => {
+  resetCfg({ agnes: { keys: ['sk-agnes-0001'] } });
+  route = req => (/images\/generations$/.test(req.url) ? [400, { error: 'content policy' }] : [404, {}]);
+  const e = await run(`genImage({ prompt: 'x', ratio: '16:9' }).then(() => null, e => e)`);
+  ok(e, 'erreur attendue');
+  eq(G('CFG').agnes.imgSize, '2K', 'taille d’origine conservée');
+});
+
+test('fal.ai : coupure réseau pendant le suivi → la tâche payée est gardée et reprise', async () => {
+  resetCfg({ fal: { key: 'id:secret' } });
+  const base = falRouter(() => ({ video: { url: 'https://cdn/v2160.mp4' } }));
+  // Vraie coupure réseau : les 3 premiers suivis de statut échouent.
+  const realFetch = ctx.fetch;
+  let drops = 3;
+  ctx.fetch = async (u, o) => { if (/\/status$/.test(u) && drops-- > 0) throw new Error('Failed to fetch'); return realFetch(u, o); };
+  route = base;
+  const o = {};
+  eq(await run(`(o => startVideo(o, { model: 'kling4k', prompt: 'p', image: 'https://cdn/i.png' }, () => {}))`)(o), 'ok');
+  await waitFor(() => o.vst === 'ok' || o.vst === 'er', 8000);
+  ctx.fetch = realFetch;
+  eq([o.vst, o.video], ['ok', 'https://cdn/v2160.mp4']);
+  eq(requests.filter(q => q.method === 'POST').length, 1, 'une seule génération payée');
+});
+
+test('fal.ai : soumission coupée en route → pas de second envoi automatique', async () => {
+  resetCfg({ fal: { key: 'id:secret' } });
+  const realFetch = ctx.fetch;
+  let posts = 0;
+  ctx.fetch = async (u, o) => { if (o && o.method === 'POST') { posts++; throw new Error('connexion réinitialisée'); } return realFetch(u, o); };
+  const e = await run(`falSubmit('fal-ai/kling-video/v3/4k/image-to-video', { prompt: 'p' }).then(() => null, e => e)`);
+  ctx.fetch = realFetch;
+  ok(e && e.fatal && /historique/.test(e.message), e && e.message);
+  eq(posts, 1, 'un seul envoi');
+});
+
+test('fal.ai : IA texte via le routeur OpenRouter (any-llm retiré)', async () => {
+  resetCfg({ fal: { key: 'id:secret' } });
+  route = req => (req.url === 'https://fal.run/openrouter/router' ? [200, { output: '{"ok":1}' }] : [404, {}]);
+  eq(await run(`llmJSON('s', 'u', 100, 0.5)`), { ok: 1 });
+  const q = requests.find(r => /openrouter/.test(r.url));
+  ok(q && /gemini/.test(q.body.model) && q.body.system_prompt && q.body.prompt === 'u', JSON.stringify(q && q.body));
+});
+
+test('genImage : tâche fal enregistrée puis reprise sans nouvelle soumission', async () => {
+  resetCfg({ fal: { key: 'id:secret' } });
+  route = falRouter(() => ({ images: [{ url: 'https://cdn/r.png', width: 3840, height: 2160 }] }));
+  let saved = null;
+  ctx.__onTask = t => { saved = t; };
+  await run(`genImage({ prompt: 'x', onTask: t => __onTask(t) })`);
+  ok(saved && saved.id && saved.st, 'tâche transmise');
+  const n = requests.filter(q => q.method === 'POST').length;
+  ctx.__task = saved;
+  const r = await run(`genImage({ prompt: 'x', task: __task })`);
+  eq(r.u, 'https://cdn/r.png');
+  eq(requests.filter(q => q.method === 'POST').length, n, 'aucune nouvelle soumission');
+});
+
+test('Facteur Topaz arrondi au-dessus : toujours ≥ 2160 px', async () => {
+  resetCfg({ fal: { key: 'id:secret' } });
+  route = falRouter(ep => (/topaz/.test(ep) ? { video: { url: 'https://cdn/up2160.mp4' } } : { video: { url: 'https://cdn/v768.mp4' } }));
+  const o = {};
+  await run(`(o => startVideo(o, { model: 'klingpro', prompt: 'p', image: 'https://cdn/i.png' }, () => {}))`)(o);
+  await waitFor(() => o.vst === 'ok');
+  const up = requests.find(q => q.method === 'POST' && /topaz/.test(q.url));
+  ok(up.body.upscale_factor * 768 >= 2160, 'facteur ' + up.body.upscale_factor);
 });
 
 async function waitFor(fn, ms) {

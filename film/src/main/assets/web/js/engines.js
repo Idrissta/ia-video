@@ -7,15 +7,15 @@
    ═════════════════════════════════════════════════════════════════════ */
 const IMODELS = {
   seedream: { name: 'Seedream 4.5', tag: '4K natif', prov: 'fal', t2i: 'fal-ai/bytedance/seedream/v4.5/text-to-image', edit: 'fal-ai/bytedance/seedream/v4.5/edit', usd: 0.04, desc: 'Photoréalisme extrême, jusqu’à 4096 px' },
-  nanopro: { name: 'Nano Banana Pro', tag: '4K', prov: 'fal', t2i: 'fal-ai/nano-banana-pro', edit: 'fal-ai/nano-banana-pro/edit', desc: 'Google · cohérence parfaite des personnages' },
+  nanopro: { name: 'Nano Banana Pro', tag: '4K', prov: 'fal', t2i: 'fal-ai/nano-banana-pro', edit: 'fal-ai/nano-banana-pro/edit', usd: 0.30, desc: 'Google · cohérence parfaite des personnages' },
   agnes: { name: 'Agnès Image 2.5', tag: '4K', prov: 'agnes', desc: 'Inclus avec vos clés Agnès · jusqu’à 4K' },
 };
 
 const VMODELS = {
   kling4k: { name: 'Kling 3.0 · 4K', tag: '4K natif', prov: 'fal', ep: 'fal-ai/kling-video/v3/4k/image-to-video', native: true, audio: true, durs: [5, 10], usd: 0.42, desc: 'Rendu Kling en 3840×2160 natif, son inclus' },
   ltx4k: { name: 'LTX-2.3 Pro · 2160p', tag: '4K natif', prov: 'fal', ep: 'fal-ai/ltx-2.3/image-to-video', native: true, audio: true, durs: [6, 8, 10], usd: 0.24, desc: '4K natif avec audio, le plus économique' },
-  klingpro: { name: 'Kling 3.0 Pro', tag: '1080p → 4K', prov: 'fal', ep: 'fal-ai/kling-video/v3/pro/image-to-video', audio: true, durs: [5, 10], usd: 0.168, desc: 'Mouvements Kling + upscale Topaz 4K' },
-  veo31: { name: 'Veo 3.1', tag: '1080p → 4K', prov: 'fal', ep: 'fal-ai/veo3.1/image-to-video', audio: true, durs: [8], desc: 'Google · dialogues parlés synchronisés + upscale 4K' },
+  klingpro: { name: 'Kling 3.0 Pro', tag: '1080p → 4K', prov: 'fal', ep: 'fal-ai/kling-video/v3/pro/image-to-video', audio: true, durs: [5, 10], usd: 0.168, usdMute: 0.112, desc: 'Mouvements Kling + upscale Topaz 4K' },
+  veo31: { name: 'Veo 3.1', tag: '1080p → 4K', prov: 'fal', ep: 'fal-ai/veo3.1/image-to-video', audio: true, durs: [8], usd: 0.40, usdMute: 0.20, desc: 'Google · dialogues parlés synchronisés + upscale 4K' },
   agnes: { name: 'Agnès Vidéo', tag: '1080p → 4K', prov: 'agnes', durs: [10], desc: 'Inclus avec vos clés Agnès · 4K via Topaz ou sur le téléphone' },
 };
 
@@ -34,7 +34,9 @@ const STYLES = [
   { id: 'scifi', name: 'Science-fiction', p: 'visionary science fiction, vast futuristic architecture, clean cold light, sleek spacecraft, epic cinematic scale' },
 ];
 
-const EP = { topazVideo: 'fal-ai/topaz/upscale/video', topazImage: 'fal-ai/topaz/upscale/image', anyLlm: 'fal-ai/any-llm', anyLlmVision: 'fal-ai/any-llm/vision' };
+const EP = { topazVideo: 'fal-ai/topaz/upscale/video', topazImage: 'fal-ai/topaz/upscale/image', anyLlm: 'openrouter/router', anyLlmVision: 'openrouter/router/vision' };
+/* Modèle texte par défaut via le routeur OpenRouter de fal (any-llm est retiré) ; remplaçable dans Réglages › Avancé. */
+const _en_FAL_LLM = 'google/gemini-3.5-flash';
 
 /* ═════════════════════════════════════════════════════════════════════
    AGNÈS — CONFIGURATION D'ORIGINE
@@ -42,9 +44,12 @@ const EP = { topazVideo: 'fal-ai/topaz/upscale/video', topazImage: 'fal-ai/topaz
 const API = 'https://apihub.agnes-ai.com/v1', POLL = 'https://apihub.agnes-ai.com/agnesapi';
 const TXT = ['agnes-3.0-flash', 'agnes-2.5-flash'], IMG = 'agnes-image-2.5-flash', VID = { free: 'agnes-video-v2.0', plan: 'agnes-video-2.5-flash' };
 const RPM = { free: { img: 10, vid: 1, txt: 10 }, plan: { img: 100, vid: 5, txt: 600 } };
-/* Paliers d'attente (minutes) quand la file vidéo Agnès est saturée (« BACK » de l'original ;
+/* Images par minute selon la définition (catalogue Agnès AI) */
+const _en_IMG_RPM = { free: { '1K': 20, '2K': 10, '4K': 1 }, plan: { '1K': 100, '2K': 80, '4K': 1 } };
+/* Paliers d'attente (minutes) quand la file vidéo Agnès est saturée, raccourcis par rapport à l'original
+   (3 → 96 min) pour ne pas bloquer une génération pendant des heures (« BACK » de l'original ;
    ce nom désigne ici la pile du bouton retour, définie dans core.js). */
-const LADDER = [3, 6, 12, 24, 48, 96];
+const LADDER = [1, 2, 3, 5, 10, 15];
 /* Clés Agnès et facteur de ralentissement global F de l'original */
 const KEYS = { list: [], plan: 'free', F: 1 };
 
@@ -117,12 +122,15 @@ function extraOf(id) {
 /* ═════════════════════════════════════════════════════════════════════
    AGNÈS — PLANIFICATEUR MULTI-CLÉS (original)
    ═════════════════════════════════════════════════════════════════════ */
-async function slot(kind) {
+async function slot(kind, size) {
   for (;;) {
     if (_en_stopped()) throw new Error('stop');
     const live = KEYS.list.filter(o => !o.off);
     if (!live.length) throw _en_err('Aucune clé Agnès active', { fatal: true });
-    const iv = 60000 / (RPM[KEYS.plan] || RPM.free)[kind] * 1.15 * KEYS.F, now = Date.now();
+    const rpm = kind === 'img'
+      ? ((_en_IMG_RPM[KEYS.plan] || _en_IMG_RPM.free)[size || CFG.agnes.imgSize || '2K'] || 1)
+      : (RPM[KEYS.plan] || RPM.free)[kind];
+    const iv = 60000 / rpm * 1.15 * KEYS.F, now = Date.now();
     let best = null, bt = 1e18;
     for (const o of live) {
       const t = Math.max(o[kind] || 0, o.cool || 0, now);
@@ -142,7 +150,7 @@ async function call(kind, url, body, tries) {
   let err;
   tries = tries || 3;
   for (let a = 0; a < tries; a++) {
-    const o = await slot(kind);
+    const o = await slot(kind, kind === 'img' && body ? body.size : undefined);
     try {
       const r = await xfetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + o.k }, body: JSON.stringify(body) });
       if (r.ok) { o.bad = 0; KEYS.F = Math.max(1, KEYS.F * 0.97); return r; }
@@ -257,15 +265,15 @@ async function _en_oaiChat(sys, user, max, temp, imgs) {
 
 async function _en_falChat(sys, user, max, temp, imgs) {
   const vision = !!(imgs && imgs.length);
-  const om = String(CFG.oai.model || '').trim();
-  // any-llm attend un identifiant « fournisseur/modèle » ; sinon modèle par défaut.
-  const body = { model: om.indexOf('/') > 0 ? om : 'google/gemini-2.5-flash', system_prompt: sys, prompt: user };
+  const body = Object.assign({ model: _en_FAL_LLM, system_prompt: sys, prompt: user, max_tokens: max, temperature: temp },
+    extraOf(vision ? 'anyLlmVision' : 'anyLlm'));
   if (vision) body.image_urls = imgs.slice(0, 4);
   const ep = epOf(vision ? 'anyLlmVision' : 'anyLlm');
   if (_en_stopped()) throw new Error('stop');
   const d = await _en_falReq('POST', 'https://fal.run/' + ep, body, ep);
-  if (d && d.error) throw new Error('fal any-llm : ' + String(d.error).slice(0, 160));
-  const t = _en_unthink(d && (d.output || d.text));
+  if (d && d.error) throw new Error('fal.ai texte : ' + String(d.error).slice(0, 160));
+  const c = d && d.choices && d.choices[0] && d.choices[0].message;
+  const t = _en_unthink(d && (d.output || d.text || (c && c.content)));
   if (!t) throw new Error('réponse vide');
   return t;
 }
@@ -336,7 +344,7 @@ function _en_falErr(status, text, ctx) {
   return _en_err(m, { fatal, status });
 }
 
-async function _en_falReq(method, url, body, ctx, tries) {
+async function _en_falReq(method, url, body, ctx, tries, noNetRetry) {
   if (!hasFal()) throw _en_err('clé fal.ai manquante : ajoutez-la dans Réglages', { fatal: true });
   tries = tries || 3;
   let err = null;
@@ -344,7 +352,11 @@ async function _en_falReq(method, url, body, ctx, tries) {
     let r;
     try {
       r = await xfetch(url, { method, headers: _en_falH(body != null), body: body == null ? undefined : JSON.stringify(body) });
-    } catch (e) { err = e; await sleep(1500 * (a + 1)); continue; }
+    } catch (e) {
+      // Une soumission coupée en route a peut-être été reçue (et facturée) : on ne la renvoie pas à l'aveugle.
+      if (noNetRetry) throw _en_err('connexion perdue pendant l’envoi à fal.ai — vérifiez votre historique sur fal.ai avant de relancer', { fatal: true, net: true });
+      err = e; await sleep(1500 * (a + 1)); continue;
+    }
     if (r.ok) return await r.json();
     const t = await r.text().catch(() => '');
     err = _en_falErr(r.status, t, ctx);
@@ -360,7 +372,7 @@ const _en_falBase = (ep, id) => 'https://queue.fal.run/' + _en_cleanEp(ep).split
 async function falSubmit(ep, body) {
   ep = _en_cleanEp(ep);
   if (!ep) throw _en_err('point d’accès fal.ai vide', { fatal: true });
-  const d = await _en_falReq('POST', 'https://queue.fal.run/' + ep, body || {}, ep);
+  const d = await _en_falReq('POST', 'https://queue.fal.run/' + ep, body || {}, ep, 3, true);
   const id = d && (d.request_id || d.requestId);
   if (!id) throw new Error('fal.ai : identifiant de requête absent');
   const base = _en_falBase(ep, id);
@@ -372,9 +384,10 @@ async function falWait(task, onMsg, isStopped) {
   const base = _en_falBase(task.ep || '', task.id);
   const st = task.st || base + '/status', res = task.res || base;
   const say = m => { if (onMsg) { try { onMsg(m); } catch (e) { /* affichage seulement */ } } };
-  const end = Date.now() + 90 * 60000;
+  // Pas de délai global : une tâche déjà payée est suivie tant que fal ne rend pas un verdict définitif.
+  // Réseau coupé ou appli en veille : on patiente de plus en plus longtemps, sans jamais abandonner.
   let n = 0, fails = 0, lost = 0;
-  while (Date.now() < end) {
+  for (;;) {
     if (isStopped && isStopped()) throw new Error('stop');
     let d = null;
     try {
@@ -385,12 +398,13 @@ async function falWait(task, onMsg, isStopped) {
         const e = _en_falErr(r.status, t, task.ep);
         if (r.status === 404) { if (++lost > 6) throw _en_err('requête fal.ai introuvable (expirée ?)', { fatal: true, status: 404 }); }
         else if (e.fatal) throw e;
-        else if (++fails > 40) throw new Error('suivi fal.ai impossible : ' + e.message);
+        else fails++;
       }
     } catch (e) {
-      if (e.fatal || e.message === 'stop' || /^suivi fal\.ai/.test(e.message)) throw e;
-      if (++fails > 40) throw new Error('suivi fal.ai impossible : ' + e.message);
+      if (e.fatal || e.message === 'stop') throw e;
+      fails++;
     }
+    if (fails === 3) say('connexion perdue · nouvel essai automatique…');
     if (d) {
       const s = String(d.status || '').toUpperCase();
       if (s === 'IN_QUEUE') {
@@ -406,10 +420,9 @@ async function falWait(task, onMsg, isStopped) {
         throw _en_err('fal.ai : ' + String(d.error || d.detail || 'génération échouée').slice(0, 200), { fatal: true });
       }
     }
-    await sleep(Math.min(8000, 1500 + n * 500));
+    await sleep(fails ? Math.min(60000, 3000 * fails) : Math.min(8000, 1500 + n * 500));
     n++;
   }
-  throw new Error('délai dépassé (fal.ai)');
 }
 
 async function falRun(ep, body, onMsg, isStopped) {
@@ -468,19 +481,19 @@ async function _en_agnesImg(prompt, refs, ratio) {
     if (imgs.length) body.extra_body.image = imgs;
     return call('img', API + '/images/generations', body, 3);
   };
-  // Taille demandée (4K par défaut) puis repli 2K → 1K si Agnès la refuse ; la taille acceptée est mémorisée.
+  // Taille demandée (2K par défaut) puis repli 2K → 1K si Agnès la refuse ; la taille plus petite n'est
+  // mémorisée qu'une fois qu'elle a réellement fonctionné (un 400 peut venir du prompt, pas de la taille).
   const sizes = ['4K', '2K', '1K'];
-  let i = Math.max(0, sizes.indexOf(CFG.agnes.imgSize || '4K'));
-  let r;
+  const want = Math.max(0, sizes.indexOf(CFG.agnes.imgSize || '2K'));
+  let i = want, r;
   for (;;) {
     try { r = await mk(sizes[i]); break; } catch (e) {
       if ((e.status !== 400 && e.status !== 422) || i >= sizes.length - 1) throw e;
       log('wr', 'taille ' + sizes[i] + ' refusée par Agnès → ' + sizes[i + 1]);
       i++;
-      CFG.agnes.imgSize = sizes[i];
-      saveCfg();
     }
   }
+  if (i !== want) { CFG.agnes.imgSize = sizes[i]; saveCfg(); }
   const d = await r.json();
   const it = d && d.data && d.data[0];
   const u = it && (it.url || (it.b64_json && 'data:image/png;base64,' + it.b64_json));
@@ -512,7 +525,14 @@ async function genImage(o) {
     Object.assign(body, extraOf(m));
     const ep = epOf(m, urls.length && cat.edit ? 'edit' : 't2i');
     log('in', 'image ' + cat.name + (o.kind ? ' (' + o.kind + ')' : '') + ' → ' + ep);
-    const d = await falRun(ep, body, o.onMsg, o.isStopped);
+    // Reprise possible après un redémarrage : `o.task` (tâche fal enregistrée) évite de payer l'image deux fois,
+    // et `o.onTask(task)` est appelé dès la soumission pour que l'appelant enregistre la tâche.
+    let task = o.task && o.task.id ? o.task : null;
+    if (!task) {
+      task = await falSubmit(ep, body);
+      if (o.onTask) { try { o.onTask(task); } catch (e) { log('er', 'image : ' + e.message); } }
+    }
+    const d = await falWait(task, o.onMsg, o.isStopped);
     u = _en_imgUrl(d);
     if (!u) throw new Error('pas d’image reçue');
     dims = _en_imgDims(d);
@@ -537,7 +557,7 @@ async function upscaleImage(url, opt) {
     w = s.w; h = s.h;
   }
   const long = Math.max(w, h) || 1920;
-  const f = Math.round(clamp(3840 / long, 1.5, 4) * 100) / 100;
+  const f = Math.ceil(clamp(3840 / long, 1.5, 4) * 100) / 100;
   const src = await _en_refUrl(url);
   if (!src) throw new Error('image illisible');
   const body = Object.assign({ image_url: src, upscale_factor: f }, extraOf('topazImage'));
@@ -633,9 +653,8 @@ async function _en_agnesPoll(t, say) {
   const model = VID[plan] || VID.free, key = t.k;
   const first = (plan === 'free' ? 30000 : 8000) - (Date.now() - (+t.t0 || 0));
   if (first > 0) { say('en file Agnès…'); await sleep(first); }
-  const end = Date.now() + 30 * 60000;
-  let n = 0, miss = 0;
-  while (Date.now() < end) {
+  let n = 0, miss = 0, net = 0;
+  for (;;) {
     const ids = [t.id];
     if (t.inner && t.inner !== t.id) ids.push(t.inner);
     const iv = Math.min(20000, 6000 + n * 1500);
@@ -647,24 +666,25 @@ async function _en_agnesPoll(t, say) {
         if (r.status === 429) { await sleep(8000); continue; }
         if (!r.ok) { miss++; continue; }
         d = await r.json();
+        net = 0;
         break;
-      } catch (e) { miss++; }
+      } catch (e) { net++; }
     }
+    if (!d && net >= 3) say('connexion perdue · nouvel essai automatique…');
     if (d) {
       const s = String(d.status || d.state || '').toLowerCase();
       say(d.progress ? d.progress + '%' : s);
       if (['completed', 'succeeded', 'done', 'success', 'finished', 'ready'].indexOf(s) >= 0) {
         const u = (d.metadata && (d.metadata.url || d.metadata.video_url)) || (d.output && (d.output.url || d.output.video_url)) || (d.data && (d.data.url || d.data.video_url)) || d.url || d.video_url;
-        if (!u) throw new Error('terminé sans URL');
+        if (!u) throw _en_err('terminé sans URL', { fatal: true });
         return u;
       }
       if (['failed', 'error', 'cancelled', 'canceled', 'rejected'].indexOf(s) >= 0) {
-        throw new Error(String((d.error && d.error.message) || d.error || 'échec génération').slice(0, 100));
+        throw _en_err(String((d.error && d.error.message) || d.error || 'échec génération').slice(0, 100), { fatal: true });
       }
-    } else if (miss > 20) throw new Error('suivi impossible');
-    await sleep(iv);
+    } else if (miss > 40) throw _en_err('suivi Agnès impossible (vidéo introuvable)', { fatal: true });
+    await sleep(net ? Math.min(60000, 3000 * net) : iv);
   }
-  throw new Error('délai dépassé');
 }
 
 function _en_guess(t, up) {
@@ -705,7 +725,7 @@ async function followVideo(o, upd) {
     if (t.stage !== 'up') {
       const say = m => { o.msg = m; U(false); };
       const url = await _en_shared(t.prov + ':' + t.id, b => (t.prov === 'fal'
-        ? falWait(t, b).then(d => { const u = _en_videoUrl(d); if (!u) throw new Error('terminé sans URL'); return u; })
+        ? falWait(t, b).then(d => { const u = _en_videoUrl(d); if (!u) throw _en_err('terminé sans URL', { fatal: true }); return u; })
         : _en_agnesPoll(t, b)), say);
       o.video0 = url;
       const cat = VMODELS[t.model] || {};
@@ -719,8 +739,8 @@ async function followVideo(o, upd) {
       }
       if (!need) { await _en_finish(o, U, url, '', t, dim, false); return; }
       const f = dim && dim.w > 0 && dim.h > 0
-        ? Math.round(clamp(2160 / Math.min(dim.w, dim.h), 1.01, 4) * 100) / 100
-        : (t.prov === 'agnes' && CFG.agnes.vidRes === '720' ? 3 : 2);
+        ? Math.ceil(clamp(2160 / Math.min(dim.w, dim.h), 1.01, 4) * 100) / 100
+        : (t.prov === 'agnes' && CFG.agnes.vidRes === '720' ? (t.plan === 'plan' ? 3 : 4) : 2);
       o.msg = 'upscale 4K · envoi…';
       U(false);
       try {
@@ -736,13 +756,15 @@ async function followVideo(o, upd) {
     }
     try {
       const say2 = m => { o.msg = 'upscale 4K · ' + m; U(false); };
-      const u = await _en_shared('fal:' + t.id, b => falWait(t, b).then(d => { const x = _en_videoUrl(d); if (!x) throw new Error('terminé sans URL'); return x; }), say2);
+      const u = await _en_shared('fal:' + t.id, b => falWait(t, b).then(d => { const x = _en_videoUrl(d); if (!x) throw _en_err('terminé sans URL', { fatal: true }); return x; }), say2);
       await _en_finish(o, U, u, '', t, null, true);
     } catch (e) {
+      if (_en_later(o, upd, U, e)) return;
       const src = o.video0 || null;
       await _en_finish(o, U, src, src ? 'upscale 4K échoué : ' + e.message : 'vidéo introuvable : ' + e.message, t, null, false);
     }
   } catch (e) {
+    if (_en_later(o, upd, U, e)) return;
     o.vst = 'er'; o.msg = ''; o.task = null;
     o.err = String((e && e.message) || e).slice(0, 200);
     log('er', 'vidéo : ' + o.err);
@@ -750,6 +772,19 @@ async function followVideo(o, upd) {
   } finally {
     _en_following.delete(o);
   }
+}
+
+/* Erreur passagère (réseau, serveur) pendant le suivi : la tâche reste enregistrée et le suivi
+   reprend tout seul une minute plus tard — et aussi au prochain lancement de l'application. */
+function _en_later(o, upd, U, e) {
+  if (!o.task || (e && (e.fatal || e.message === 'stop'))) return false;
+  // Au-delà de 30 reprises sur erreur serveur, on rend la main (le bouton Relancer reste disponible).
+  if ((o.task.rf = (o.task.rf | 0) + 1) > 30) return false;
+  o.msg = 'connexion perdue · reprise automatique…';
+  log('wr', 'suivi vidéo interrompu (' + ((e && e.message) || e) + ') → reprise dans 1 min');
+  U(true);
+  setTimeout(() => { if (o.vst === 'run' && o.task) followVideo(o, upd); }, 60000);
+  return true;
 }
 
 async function _en_agnesLaunch(o, spec, ratio, U, upd) {
@@ -770,12 +805,11 @@ async function _en_agnesLaunch(o, spec, ratio, U, upd) {
   let r;
   try {
     r = await send(CFG.agnes.vidRes);
-    // Résolution 1080p refusée : un seul nouvel essai dans la résolution d'origine, mémorisée ensuite.
+    // Résolution 1080p refusée : un seul nouvel essai dans la résolution d'origine, mémorisée s'il réussit.
     if ((r.status === 400 || r.status === 422) && CFG.agnes.vidRes !== '720') {
       log('wr', 'vidéo 1080p refusée par Agnès (HTTP ' + r.status + ') → résolution d’origine');
-      CFG.agnes.vidRes = '720';
-      saveCfg();
       r = await send('720');
+      if (r.ok) { CFG.agnes.vidRes = '720'; saveCfg(); }
     }
   } catch (e) {
     o.vst = 'wait'; o.msg = ''; log('wr', e.message); U(true); return 'later';
@@ -889,13 +923,17 @@ function resLabel(w, h) {
   return w + '×' + h;
 }
 
-function estimateVideoUSD(id, seconds) {
+/* Estimation indicative (tarifs publics fal.ai) : génération + upscale Topaz automatique (≈ 0,08 $/s au-delà
+   de 1080p) pour les modèles qui ne sont pas en 4K natif. `audio === false` applique le tarif sans son. */
+function estimateVideoUSD(id, seconds, audio) {
   const m = VMODELS[id];
   if (!m) return null;
-  if (m.prov === 'agnes') return 0;
-  if (m.usd == null) return null;
   const s = +seconds > 0 ? +seconds : (m.durs && m.durs[0]) || 5;
-  return Math.round(m.usd * s * 1000) / 1000;
+  const topaz = !m.native && CFG.up4k !== false && hasFal() ? 0.08 * s : 0;
+  if (m.prov === 'agnes') return Math.round(topaz * 1000) / 1000;
+  const rate = audio === false && m.usdMute != null ? m.usdMute : m.usd;
+  if (rate == null) return null;
+  return Math.round((rate * s + topaz) * 1000) / 1000;
 }
 
 /* ═════════════════════════════════════════════════════════════════════

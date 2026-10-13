@@ -3,10 +3,13 @@ package com.idrissta.cinegenesis;
 import android.Manifest;
 import android.app.Activity;
 import android.content.ContentResolver;
+import android.content.ContentUris;
 import android.content.ContentValues;
 import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
+import android.content.res.AssetFileDescriptor;
+import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
@@ -48,6 +51,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -62,6 +66,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Semaphore;
 
 /**
  * Coque native de CINÉ-GENESIS : affiche l'interface web embarquée (assets/web)
@@ -93,12 +98,17 @@ public class MainActivity extends Activity {
     /** Réponses en attente de lecture par JavaScript (identifiant → JSON). */
     private final Map<String, String> results = new ConcurrentHashMap<>();
     private final Map<String, HttpURLConnection> running = new ConcurrentHashMap<>();
+    /** Décodages d'images simultanés (mémoire) : les téléchargements, eux, restent parallèles. */
+    private final Semaphore decodeSlots = new Semaphore(2);
 
     private TextToSpeech tts;
     private boolean ttsReady;
     private String pendingSpeech;
     private String pendingLang;
     private FilmExporter exporter;
+    /** Écran maintenu allumé : demandes séparées de la page et de l'export (fil principal). */
+    private boolean jsAwake;
+    private boolean exportAwake;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -109,6 +119,14 @@ public class MainActivity extends Activity {
 
         root = new FrameLayout(this);
         root.setBackgroundColor(BG);
+        createWebView();
+        setContentView(root);
+        exporter = new FilmExporter(this, io, main);
+        registerBack();
+        web.loadUrl(START_URL);
+    }
+
+    private void createWebView() {
         web = new WebView(this);
         web.setBackgroundColor(BG);
         web.setOverScrollMode(View.OVER_SCROLL_NEVER);
@@ -139,11 +157,47 @@ public class MainActivity extends Activity {
             return wi;
         });
 
-        root.addView(web, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
-        setContentView(root);
-        exporter = new FilmExporter(this, io, main);
-        registerBack();
-        web.loadUrl(START_URL);
+        root.addView(web, 0, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+    }
+
+    /**
+     * Moteur de rendu arrêté (mémoire) : seule la WebView est reconstruite.
+     * L'activité, et donc un export natif en cours, continue ; ses évènements
+     * arrivent dans la nouvelle page.
+     */
+    private void rebuildWebView(WebView dead) {
+        pageReady = false;
+        if (customView != null) {
+            root.removeView(customView);
+            customView = null;
+            customCallback = null;
+        }
+        fileCallback = null;
+        results.clear();
+        // La nouvelle page redemandera l'écran allumé si elle en a besoin.
+        jsAwake = false;
+        applyAwake();
+        ViewGroup parent = (ViewGroup) dead.getParent();
+        if (parent != null) parent.removeView(dead);
+        dead.destroy();
+        web = null;
+        main.post(() -> {
+            if (web != null || isFinishing() || isDestroyed()) return;
+            createWebView();
+            root.requestApplyInsets();
+            web.loadUrl(START_URL);
+        });
+    }
+
+    private void applyAwake() {
+        if (jsAwake || exportAwake) getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        else getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+    }
+
+    /** Appelé par l'export (fil principal). */
+    void setExportAwake(boolean on) {
+        exportAwake = on;
+        applyAwake();
     }
 
     /* ------------------------------------------------------------------ */
@@ -355,7 +409,7 @@ public class MainActivity extends Activity {
         if (customView == null) return;
         root.removeView(customView);
         customView = null;
-        web.setVisibility(View.VISIBLE);
+        if (web != null) web.setVisibility(View.VISIBLE);
         if (customCallback != null) customCallback.onCustomViewHidden();
         customCallback = null;
     }
@@ -427,6 +481,145 @@ public class MainActivity extends Activity {
         return new WebResourceResponse("text/plain", "utf-8", code, reason, null, new ByteArrayInputStream(new byte[0]));
     }
 
+    /**
+     * « /media?u=content://… » : fichier de la galerie (films et vidéos 4K exportés)
+     * servi depuis l'origine de la page, que la WebView refuse de lire en content://.
+     * Les requêtes Range sont honorées pour l'avance rapide dans le lecteur.
+     */
+    private WebResourceResponse media(WebResourceRequest request) {
+        String u = request.getUrl().getQueryParameter("u");
+        Uri src = u == null ? null : Uri.parse(u);
+        if (src == null || !"content".equals(src.getScheme())) return error(404, "Not Found");
+        AssetFileDescriptor afd = null;
+        InputStream in = null;
+        try {
+            ContentResolver cr = getContentResolver();
+            afd = cr.openAssetFileDescriptor(src, "r");
+            if (afd == null) return error(404, "Not Found");
+            String type = cr.getType(src);
+            if (type == null) type = "application/octet-stream";
+            long len = afd.getLength();
+            in = afd.createInputStream();
+            Map<String, String> headers = new HashMap<>();
+            headers.put("Cache-Control", "no-cache");
+            if (len < 0) return new WebResourceResponse(type, null, 200, "OK", headers, in);
+            headers.put("Accept-Ranges", "bytes");
+            long[] r = range(request.getRequestHeaders(), len);
+            if (r == null) {
+                headers.put("Content-Length", String.valueOf(len));
+                return new WebResourceResponse(type, null, 200, "OK", headers, in);
+            }
+            if (r[0] < 0) {
+                in.close();
+                headers.put("Content-Range", "bytes */" + len);
+                return new WebResourceResponse("text/plain", "utf-8", 416, "Range Not Satisfiable", headers,
+                        new ByteArrayInputStream(new byte[0]));
+            }
+            for (long skip = r[0]; skip > 0; ) {
+                long n = in.skip(skip);
+                if (n <= 0) {
+                    if (in.read() < 0) throw new IOException("fin de fichier");
+                    n = 1;
+                }
+                skip -= n;
+            }
+            long count = r[1] - r[0] + 1;
+            headers.put("Content-Length", String.valueOf(count));
+            headers.put("Content-Range", "bytes " + r[0] + "-" + r[1] + "/" + len);
+            return new WebResourceResponse(type, null, 206, "Partial Content", headers, new Limited(in, count));
+        } catch (Exception e) {
+            try {
+                if (in != null) in.close();
+                else if (afd != null) afd.close();
+            } catch (IOException ignored) {
+                // déjà fermé
+            }
+            return error(404, "Not Found");
+        }
+    }
+
+    /**
+     * Plage « bytes=a-b », « bytes=a- » ou « bytes=-n » : {début, fin} ; {-1, -1}
+     * si elle sort du fichier ; null sans en-tête Range valide (fichier entier).
+     */
+    private static long[] range(Map<String, String> headers, long len) {
+        String v = null;
+        if (headers != null) {
+            for (Map.Entry<String, String> e : headers.entrySet()) {
+                if ("range".equalsIgnoreCase(e.getKey())) v = e.getValue();
+            }
+        }
+        if (v == null) return null;
+        v = v.trim().toLowerCase(Locale.ROOT);
+        int dash = v.indexOf('-');
+        if (!v.startsWith("bytes=") || dash < 6 || v.indexOf(',') >= 0) return null;
+        try {
+            String a = v.substring(6, dash).trim();
+            String b = v.substring(dash + 1).trim();
+            long start;
+            long end = len - 1;
+            if (a.isEmpty()) {
+                long n = Long.parseLong(b);
+                if (n <= 0 || len == 0) return new long[] {-1, -1};
+                start = Math.max(0, len - n);
+            } else {
+                start = Long.parseLong(a);
+                if (!b.isEmpty()) {
+                    long last = Long.parseLong(b);
+                    if (last < start) return null;
+                    end = Math.min(end, last);
+                }
+            }
+            if (start < 0) return null;
+            return start >= len ? new long[] {-1, -1} : new long[] {start, end};
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    /** Flux limité aux octets d'une réponse partielle. */
+    private static final class Limited extends FilterInputStream {
+        private long left;
+
+        Limited(InputStream in, long count) {
+            super(in);
+            left = count;
+        }
+
+        @Override
+        public int read() throws IOException {
+            if (left <= 0) return -1;
+            int b = super.read();
+            if (b >= 0) left--;
+            return b;
+        }
+
+        @Override
+        public int read(byte[] b, int off, int len) throws IOException {
+            if (left <= 0) return -1;
+            int n = super.read(b, off, (int) Math.min(len, left));
+            if (n > 0) left -= n;
+            return n;
+        }
+
+        @Override
+        public long skip(long n) throws IOException {
+            long s = super.skip(Math.min(n, left));
+            if (s > 0) left -= s;
+            return s;
+        }
+
+        @Override
+        public int available() throws IOException {
+            return (int) Math.min(super.available(), left);
+        }
+
+        @Override
+        public boolean markSupported() {
+            return false;
+        }
+    }
+
     private final class AssetClient extends WebViewClient {
         @Override
         public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
@@ -435,6 +628,7 @@ public class MainActivity extends Activity {
             if (!HOST.equals(uri.getHost())) return null;
             String path = uri.getPath();
             if (path == null || path.isEmpty() || "/".equals(path)) path = "/index.html";
+            if ("/media".equals(path)) return media(request);
             if (path.contains("..")) return error(404, "Not Found");
             try {
                 InputStream in = getAssets().open("web" + path);
@@ -458,20 +652,15 @@ public class MainActivity extends Activity {
 
         @Override
         public void onPageFinished(WebView view, String url) {
+            if (view != web) return;
             pageReady = true;
             pushInsets();
         }
 
         @Override
         public boolean onRenderProcessGone(WebView view, RenderProcessGoneDetail detail) {
-            // Le moteur de rendu a été arrêté (mémoire) : on reconstruit l'activité.
-            if (web == view) {
-                ViewGroup parent = (ViewGroup) view.getParent();
-                if (parent != null) parent.removeView(view);
-                view.destroy();
-                web = null;
-            }
-            recreate();
+            // Sans recréer l'activité : un export natif en cours n'est pas annulé.
+            if (web == view) rebuildWebView(view);
             return true;
         }
     }
@@ -661,18 +850,67 @@ public class MainActivity extends Activity {
         }
         File folder = new File(Environment.getExternalStoragePublicDirectory(dir), "CineGenesis");
         if (!folder.isDirectory() && !folder.mkdirs()) throw new IOException("dossier inaccessible");
+        // Nom unique, comme MediaStore le fait depuis Android 10 : jamais d'écrasement.
+        int dot = name.lastIndexOf('.');
+        String stem = dot > 0 ? name.substring(0, dot) : name;
+        String ext = dot > 0 ? name.substring(dot) : "";
         File out = new File(folder, name);
+        for (int n = 1; out.exists(); n++) out = new File(folder, stem + " (" + n + ")" + ext);
         try (OutputStream os = new FileOutputStream(out)) {
             copy(in, os);
+        } catch (IOException e) {
+            out.delete();
+            throw e;
         }
         if (doc) return Uri.fromFile(out);
         Uri collection = video ? MediaStore.Video.Media.EXTERNAL_CONTENT_URI : MediaStore.Images.Media.EXTERNAL_CONTENT_URI;
         ContentValues v = new ContentValues();
         v.put(MediaStore.MediaColumns.DATA, out.getAbsolutePath());
-        v.put(MediaStore.MediaColumns.DISPLAY_NAME, name);
+        v.put(MediaStore.MediaColumns.DISPLAY_NAME, out.getName());
         v.put(MediaStore.MediaColumns.MIME_TYPE, mime);
         Uri uri = cr.insert(collection, v);
-        return uri != null ? uri : Uri.fromFile(out);
+        if (uri == null) {
+            // Ancienne entrée de la galerie pour ce chemin (fichier supprimé hors galerie) : réutilisée.
+            uri = rowFor(cr, collection, out.getAbsolutePath());
+            if (uri != null) {
+                v.remove(MediaStore.MediaColumns.DATA);
+                cr.update(uri, v, null, null);
+            }
+        }
+        if (uri == null) {
+            // Une URI file:// ne pourrait être ni ouverte ni partagée : échec franc.
+            out.delete();
+            throw new IOException("ajout à la galerie refusé");
+        }
+        return uri;
+    }
+
+    @SuppressWarnings("deprecation")
+    private static Uri rowFor(ContentResolver cr, Uri collection, String path) {
+        try (Cursor c = cr.query(collection, new String[] {MediaStore.MediaColumns._ID},
+                MediaStore.MediaColumns.DATA + "=?", new String[] {path}, null)) {
+            if (c != null && c.moveToFirst()) return ContentUris.withAppendedId(collection, c.getLong(0));
+        } catch (RuntimeException ignored) {
+            // galerie inaccessible
+        }
+        return null;
+    }
+
+    /** Nom réel du fichier enregistré (la galerie peut l'avoir rendu unique). */
+    String displayName(Uri uri, String fallback) {
+        if ("content".equals(uri.getScheme())) {
+            try (Cursor c = getContentResolver().query(uri, new String[] {MediaStore.MediaColumns.DISPLAY_NAME}, null, null, null)) {
+                if (c != null && c.moveToFirst()) {
+                    String name = c.getString(0);
+                    if (name != null && !name.isEmpty()) return name;
+                }
+            } catch (RuntimeException ignored) {
+                // nom déclaré conservé
+            }
+        } else if (uri.getLastPathSegment() != null) {
+            return uri.getLastPathSegment();
+        }
+        return fallback;
     }
 
     static void copy(InputStream in, OutputStream os) throws IOException {
@@ -868,8 +1106,8 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void keepAwake(boolean on) {
             main.post(() -> {
-                if (on) getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-                else getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                jsAwake = on;
+                applyAwake();
             });
         }
 
