@@ -1,9 +1,10 @@
 # IA Vidéo — applications Android
 
-Ce dépôt contient deux applications Android compilées automatiquement par GitHub Actions :
+Ce dépôt contient trois applications Android compilées automatiquement par GitHub Actions :
 
 | Application | Dossier | Description |
 | --- | --- | --- |
+| **Vélo Champion** | `velo/` | Jeu de course cycliste en 3D : 5 niveaux de 10 étapes contre 10 adversaires, vélos plus rapides à acheter. |
 | **CINÉ-GENESIS** | `film/` | Studio de création IA : images 4K, vidéos 4K (Kling 3.0, LTX-2.3, Veo 3.1…) et films complets montés en 4K sur le téléphone. |
 | **Nova Graph** | `app/` | Calculatrice graphique hors ligne. |
 
@@ -18,6 +19,81 @@ Ce dépôt contient deux applications Android compilées automatiquement par Git
 Ouvrez le lien depuis le téléphone, puis le fichier `.apk`, et autorisez l'installation depuis cette source si Android le demande
 (Android 8.0 ou plus récent). Les APK sont aussi disponibles comme artefacts de chaque exécution (onglet **Actions**),
 et un tag `v*` crée une *Release* versionnée.
+
+---
+
+# Vélo Champion — jeu de course cycliste
+
+Course de vélo en 3D (vue derrière le coureur) en mode paysage, entièrement hors ligne.
+
+### Télécharger
+
+Le workflow **APK Vélo Champion** publie à chaque push la version [**velo-latest**](../../releases/tag/velo-latest) :
+
+- `VeloChampion-TEST.apk` — **version de test** : les vélos payants se débloquent gratuitement (achat simulé)
+  pour essayer les 5 niveaux. S'installe à côté de la vraie version (« Vélo Champion TEST »).
+  `https://github.com/Idrissta/ia-video/releases/download/velo-latest/VeloChampion-TEST.apk`
+- `VeloChampion.apk` — **version de production** : vélos payants via Google Play Billing.
+  `https://github.com/Idrissta/ia-video/releases/download/velo-latest/VeloChampion.apk`
+
+### Le jeu
+
+- **5 niveaux × 10 étapes**. Chaque étape oppose le joueur à **10 adversaires du même niveau** :
+  étape 1 = 10 faibles, étape 2 = 10 moyens, puis bons, confirmés, forts, très forts, experts, élites, maîtres
+  et enfin 10 champions à l'étape 10.
+- Il faut **finir 1er** pour débloquer l'étape suivante. Gagner l'étape 10 ouvre le niveau suivant.
+- Chaque niveau est plus rapide et **demande un nouveau vélo** (payant) pour augmenter la vitesse :
+
+  | Niveau | Décor | Vélo requis | Vitesse / sprint | Prix indicatif | Produit Google Play |
+  | --- | --- | --- | --- | --- | --- |
+  | 1 | Vallée Verte (campagne) | Rouleur Acier | 34 / 44 km/h | offert | — |
+  | 2 | Côte d'Azur (couchant) | Alu Sprint | 40 / 52 km/h | 0,99 € | `velo_alu_sprint` |
+  | 3 | Canyon Rouge (désert) | Carbone Pro | 47 / 61 km/h | 1,99 € | `velo_carbone_pro` |
+  | 4 | Grand Col (montagne) | Aéro Chrono | 55 / 71,5 km/h | 2,99 € | `velo_aero_chrono` |
+  | 5 | Néon City (nuit) | Fusion X | 64 / 83 km/h | 4,99 € | `velo_fusion_x` |
+
+- **Commandes** : flèches ◀ ▶ (ou inclinaison du téléphone, au choix dans Réglages) pour se diriger, bouton
+  **SPRINT** à maintenir (vide la jauge d'énergie). Rouler juste derrière un adversaire donne
+  l'**aspiration** (plus de vitesse et recharge de l'énergie) ; les chocs, l'herbe et les montées ralentissent.
+- Graphismes : route 3D avec virages et côtes, 5 décors complets (arbres, palmiers, cactus, chalets, ville néon,
+  public, arches DÉPART/ARRIVÉE), coureurs animés vus de dos, confettis, résolution adaptée au téléphone.
+- Sons et musique synthétisés, vibrations, sauvegarde automatique de la progression et des records.
+
+### Activer les paiements (Google Play)
+
+Les achats réels ne fonctionnent que pour une application **publiée sur Google Play** (au moins en test interne) :
+
+1. Créer l'application `com.idrissta.velochampion` dans la [Play Console](https://play.google.com/console) et
+   y envoyer l'APK ou l'AAB de production signé avec **votre propre clé** (voir *Signature* plus bas).
+2. *Monétiser → Produits → Produits intégrés* : créer les 4 produits à achat unique du tableau ci-dessus
+   (`velo_alu_sprint`, `velo_carbone_pro`, `velo_aero_chrono`, `velo_fusion_x`) et fixer leurs prix.
+3. Ajouter vos comptes de test dans *Test de licence* pour acheter sans être débité.
+
+Le jeu affiche alors le prix localisé renvoyé par Google Play, confirme chaque achat (sinon Google le rembourse
+sous 3 jours) et restaure les vélos achetés après une réinstallation (*Réglages → Restaurer mes achats*).
+Sans Google Play (APK installé à la main), la version de production indique que l'achat est indisponible.
+
+### Architecture
+
+```
+velo/src/main/
+├── java/com/idrissta/velochampion/
+│   ├── MainActivity.java   coque native : WebView plein écran paysage, vibrations, retour, écran allumé
+│   └── Billing.java        Google Play Billing (prix, achat, confirmation, restauration)
+└── assets/web/
+    ├── index.html, css/game.css   menus, HUD et commandes tactiles
+    ├── js/data.js      vélos, niveaux, décors, adversaires
+    ├── js/sim.js       tracé des étapes, physique, aspiration, adversaires (IA)
+    ├── js/render.js    moteur de rendu pseudo-3D (Canvas 2D)
+    ├── js/sprites.js   décors, arrière-plans, coureurs et vélos dessinés par le code
+    ├── js/audio.js     effets sonores et musique (Web Audio)
+    ├── js/save.js      progression et réglages
+    ├── js/store.js     boutique (Google Play, ou achats simulés en version de test)
+    └── js/ui.js        écrans, boucle de jeu, HUD
+```
+
+Jouer dans un navigateur (achats simulés) : `python3 -m http.server 8000 -d velo/src/main/assets/web`.
+Tests (progression, tracés des 50 étapes, équilibrage par pilote automatique) : `node tools/test-velo.js`.
 
 ---
 
@@ -124,7 +200,7 @@ Voir [Télécharger les APK](#télécharger-les-apk) plus haut. Configuration re
 
 ### Signature
 
-Par défaut, les deux APK (Nova Graph et CINÉ-GENESIS) sont signés avec la clé de développement versionnée `app/nova-dev.keystore` (mot de passe public `android`) pour que chaque nouvelle version s'installe par-dessus la précédente. Pour une diffusion publique (Play Store…), utilisez votre propre clé en ajoutant ces secrets au dépôt :
+Par défaut, les APK (Nova Graph, CINÉ-GENESIS et Vélo Champion) sont signés avec la clé de développement versionnée `app/nova-dev.keystore` (mot de passe public `android`) pour que chaque nouvelle version s'installe par-dessus la précédente. Pour une diffusion publique (Play Store…), utilisez votre propre clé en ajoutant ces secrets au dépôt :
 
 | Secret | Contenu |
 | --- | --- |
@@ -138,9 +214,10 @@ Par défaut, les deux APK (Nova Graph et CINÉ-GENESIS) sont signés avec la cl�
 Prérequis : JDK 17 et le SDK Android (Android Studio les fournit).
 
 ```bash
-./gradlew assembleRelease      # → app/…/app-release.apk et film/…/film-release.apk
+./gradlew assembleRelease      # → app/…/app-release.apk, film/…/film-release.apk et velo/…/velo-release.apk
 ./gradlew :app:installDebug    # installe Nova Graph sur un appareil connecté
 ./gradlew :film:installDebug   # installe CINÉ-GENESIS
+./gradlew :velo:installDebug   # installe Vélo Champion (version de test)
 ```
 
 Ou ouvrez simplement le dossier dans Android Studio.

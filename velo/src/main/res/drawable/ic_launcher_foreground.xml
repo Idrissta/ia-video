@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Traits de vitesse -->
+    <path
+        android:pathData="M20,43h11M16,51h13M21,59h6"
+        android:strokeWidth="3.2"
+        android:strokeAlpha="0.55"
+        android:strokeColor="#FF14182B"
+        android:strokeLineCap="round" />
+    <!-- Roues -->
+    <path
+        android:pathData="M27,64a11,11 0,1 0,22 0a11,11 0,1 0,-22 0zM63,64a11,11 0,1 0,22 0a11,11 0,1 0,-22 0z"
+        android:strokeWidth="4.4"
+        android:strokeColor="#FF14182B" />
+    <!-- Cadre -->
+    <path
+        android:pathData="M38,64L52,64L47,47L68,47L74,64M52,64L69,51M38,64L47,47M44,43h9M68,47L68,41L74,41"
+        android:strokeWidth="4"
+        android:strokeColor="#FF14182B"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M49.6,64a2.4,2.4 0,1 0,4.8 0a2.4,2.4 0,1 0,-4.8 0z" />
+</vector>
