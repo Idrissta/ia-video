@@ -29,6 +29,9 @@
     rho: -0.07,           // correction Dixon-Coles
     htShare: 0.445,       // part des buts marqués en 1re mi-temps
     marketWeight: 0.6,    // poids des cotes dans la combinaison modèle + marché
+    window: 5,            // nombre de matchs récents utilisés par équipe
+    seasonWeight: 0,      // poids du classement de la saison comme centre du rétrécissement
+    seasonPrior: 6,       // matchs « fictifs » ajoutés au classement
     maxGoals: 10
   };
 
@@ -110,15 +113,17 @@
    * matches : du plus récent au plus ancien, { isHome, gf, ga, neutral?, opp?: {att, def} }.
    * Renvoie { att, def, n } (1 = moyenne de la ligue).
    */
-  E.rating = function (matches, p, lg) {
+  E.rating = function (matches, p, lg, center) {
     const mu = lg.mu;
+    const c0 = center || { att: 1, def: 1 };
     let attNum = 0;
     let defNum = 0;
     let den = 0;
     let n = 0;
-    (matches || []).forEach((m, k) => {
+    (matches || []).forEach((m) => {
       if (m == null || !isFinite(m.gf) || !isFinite(m.ga)) return;
-      const w = Math.pow(p.decay, n);
+      if (n >= p.window) return;
+      const w = Math.pow(p.decay, n) * (m.w || 1);
       n++;
       const venueFor = m.neutral ? 1 : m.isHome ? lg.hs : lg.as;
       const venueAgainst = m.neutral ? 1 : m.isHome ? lg.as : lg.hs;
@@ -131,12 +136,34 @@
       attNum += w * m.gf / (venueFor * oppDef);
       defNum += w * m.ga / (venueAgainst * oppAtt);
       den += w;
-      void k;
     });
-    // Moyenne a posteriori gamma-Poisson : `prior` matchs moyens ajoutés.
-    const att = (attNum + p.prior * mu) / ((den + p.prior) * mu);
-    const def = (defNum + p.prior * mu) / ((den + p.prior) * mu);
+    // Moyenne a posteriori gamma-Poisson : `prior` matchs « type » ajoutés,
+    // centrés sur la force de saison (classement) quand elle est connue.
+    const att = (attNum + p.prior * mu * c0.att) / ((den + p.prior) * mu);
+    const def = (defNum + p.prior * mu * c0.def) / ((den + p.prior) * mu);
     return { att, def, n, weight: den };
+  };
+
+  /**
+   * Force de saison (classement) servant de centre au rétrécissement :
+   * season = { gp, gf?, ga?, gd } ; sans buts marqués/encaissés on répartit
+   * la différence de buts à parts égales entre attaque et défense.
+   */
+  E.seasonCenter = function (season, p, lg) {
+    if (!season || !(season.gp > 0) || !p.seasonWeight) return null;
+    const k = season.gp / (season.gp + p.seasonPrior);
+    let att;
+    let def;
+    if (isFinite(season.gf) && isFinite(season.ga)) {
+      att = season.gf / season.gp / lg.mu;
+      def = season.ga / season.gp / lg.mu;
+    } else if (isFinite(season.gd)) {
+      const g = clamp(season.gd / season.gp, -3, 3);
+      att = 1 + g / (2 * lg.mu);
+      def = 1 - g / (2 * lg.mu);
+    } else return null;
+    const w = p.seasonWeight * k;
+    return { att: clamp(1 + w * (att - 1), 0.3, 3), def: clamp(1 + w * (def - 1), 0.3, 3) };
   };
 
   /** Moyennes de ligue → facteurs domicile/extérieur. */
@@ -153,8 +180,8 @@
   E.lambdas = function (input, params) {
     const p = Object.assign({}, E.DEFAULTS, params || {});
     const lg = E.league(p);
-    const rh = E.rating(input.home.matches, p, lg);
-    const ra = E.rating(input.away.matches, p, lg);
+    const rh = E.rating(input.home.matches, p, lg, E.seasonCenter(input.home.season, p, lg));
+    const ra = E.rating(input.away.matches, p, lg, E.seasonCenter(input.away.season, p, lg));
     const neutral = !!input.neutral;
     let lh = lg.mu * (neutral ? 1 : lg.hs) * rh.att * ra.def;
     let la = lg.mu * (neutral ? 1 : lg.as) * ra.att * rh.def;

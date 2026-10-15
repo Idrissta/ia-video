@@ -144,6 +144,19 @@ const ymd = (d) => d.toISOString().slice(0, 10).replace(/-/g, '');
   if (sj.seasonseries) console.log(brief(sj.seasonseries[0].events[0], '$.h2h[0]', 4, 20));
   if (sj.lastFiveGames) console.log(brief(sj.lastFiveGames[0].events[0], '$.last5[0]', 3, 30));
 
+  console.log('\n## 8. Découpage des journées ESPN et classements complets');
+  const dd = await get(ESPN + '/all/scoreboard?dates=' + ymd(sat) + '&limit=1000');
+  const ts = ((dd.json && dd.json.events) || []).map((e) => e.date).sort();
+  console.log('dates=' + ymd(sat) + ' → ' + ts.length + ' matchs de ' + ts[0] + ' à ' + ts[ts.length - 1] + ' (' + dd.body.length + ' o)');
+  const sum = await get(ESPN + '/all/summary?event=' + (evs2[0] && evs2[0].id));
+  console.log('header.league : ' + JSON.stringify(sum.json && sum.json.header && sum.json.header.league).slice(0, 300));
+  for (const u of ['https://site.api.espn.com/apis/v2/sports/soccer/eng.1/standings', 'https://site.web.api.espn.com/apis/v2/sports/soccer/eng.1/standings']) {
+    const r = await get(u);
+    const ch = r.json && r.json.children && r.json.children[0];
+    const e = ch && ch.standings && ch.standings.entries && ch.standings.entries[0];
+    console.log(u + ' → ' + r.status + (e ? ' stats : ' + e.stats.map((x) => x.name + '=' + x.displayValue).join(', ') : ' clés=' + Object.keys(r.json || {}).join(',')));
+  }
+
   console.log('\n## 6. Données historiques (football-data.co.uk)');
   for (const f of ['mmz4281/2526/E0.csv', 'mmz4281/2526/F1.csv', 'new/BRA.csv']) {
     const r = await get('https://www.football-data.co.uk/' + f);

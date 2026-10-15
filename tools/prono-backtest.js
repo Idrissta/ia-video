@@ -105,8 +105,9 @@ function buildSamples(matches) {
         gf += x.gf;
         ga += x.ga;
       }
-      const k = h.length / (h.length + 5);
-      return { att: 1 + k * (gf / h.length / mu - 1), def: 1 + k * (ga / h.length / mu - 1) };
+      const k = h.length / (h.length + 6);
+      const g = (gf - ga) / h.length;
+      return { att: 1 + k * g / (2 * mu), def: 1 - k * g / (2 * mu) };
     };
     for (const m of list) {
       const r = recent.slice(-380);
@@ -120,7 +121,18 @@ function buildSamples(matches) {
       const hh = team(m.home);
       const ha = team(m.away);
       if (hh.length >= 3 && ha.length >= 3) {
-        const conv = (arr) => arr.slice(-5).reverse().map((x) => ({ isHome: x.isHome, gf: x.gf, ga: x.ga, opp: strength(x.opp, mu) }));
+        const conv = (arr) => arr.slice(-20).reverse().map((x) => ({ isHome: x.isHome, gf: x.gf, ga: x.ga, opp: strength(x.opp, mu) }));
+        const seasonOf = (arr) => {
+          const cur = arr.filter((x) => x.season === m.season);
+          if (!cur.length) return null;
+          let gf = 0;
+          let ga = 0;
+          for (const x of cur) {
+            gf += x.gf;
+            ga += x.ga;
+          }
+          return { gp: cur.length, gf, ga, gd: gf - ga };
+        };
         const key = [m.home, m.away].sort().join('|');
         const h2h = (pairs.get(key) || []).slice(-5).reverse().map((x) => ({
           ageYears: (m.t - x.t) / (365.25 * 864e5),
@@ -130,11 +142,11 @@ function buildSamples(matches) {
         }));
         samples.push({
           m, homeAvg, awayAvg,
-          input: { home: { matches: conv(hh) }, away: { matches: conv(ha) }, h2h }
+          input: { home: { matches: conv(hh), season: seasonOf(hh) }, away: { matches: conv(ha), season: seasonOf(ha) }, h2h }
         });
       }
-      hh.push({ t: m.t, isHome: true, gf: m.hg, ga: m.ag, opp: m.away });
-      ha.push({ t: m.t, isHome: false, gf: m.ag, ga: m.hg, opp: m.home });
+      hh.push({ t: m.t, season: m.season, isHome: true, gf: m.hg, ga: m.ag, opp: m.away });
+      ha.push({ t: m.t, season: m.season, isHome: false, gf: m.ag, ga: m.hg, opp: m.home });
       const key = [m.home, m.away].sort().join('|');
       if (!pairs.has(key)) pairs.set(key, []);
       pairs.get(key).push(m);
@@ -321,6 +333,54 @@ function settle(key, m) {
   const test = samples.filter((s) => s.m.season >= TEST_FROM);
   console.log('Échantillons : ' + samples.length + ' (calibration ' + train.length + ', test ' + test.length + ')');
 
+  const calibrate = (base, grid, label) => {
+    let params = Object.assign({}, base);
+    let best = evaluate(train, params, 'model').score;
+    for (let pass = 0; pass < 2; pass++) {
+      for (const k of Object.keys(grid)) {
+        for (const v of grid[k]) {
+          const trial = Object.assign({}, params, { [k]: v });
+          const sc = evaluate(train, trial, 'model').score;
+          if (sc < best - 1e-6) {
+            best = sc;
+            params = trial;
+          }
+        }
+      }
+    }
+    const t = evaluate(test, params, 'model');
+    console.log('[' + label + '] calibration ' + best.toFixed(4) + ' → test ' + t.score.toFixed(4) + ' | 1X2 ' + t.l1x2.toFixed(4) + ' (' + (100 * t.a1x2).toFixed(1) + ' %) ±2,5 ' + t.lo25.toFixed(4) + ' (' + (100 * t.ao25).toFixed(1) + ' %) BTTS ' + t.lbtts.toFixed(4) + ' ' + JSON.stringify(params));
+    return params;
+  };
+  const BASE_GRID = {
+    decay: [0.7, 0.8, 0.9, 0.95, 1],
+    prior: [2, 4, 8, 12, 16, 24],
+    oppAdjust: [0, 0.3, 0.6, 1],
+    h2hWeight: [0, 0.15, 0.25, 0.4, 0.6],
+    rho: [-0.1, -0.05, 0]
+  };
+  const base0 = Object.assign({}, E.DEFAULTS, { htShare, h2hHalfLife: 5 });
+  console.log('\n=== Variantes (calibrées sur les saisons anciennes, mesurées sur les saisons de test) ===');
+  calibrate(Object.assign({}, base0, { window: 5, seasonWeight: 0 }), BASE_GRID, '5 derniers matchs');
+  calibrate(Object.assign({}, base0, { window: 10, seasonWeight: 0 }), BASE_GRID, '10 derniers matchs');
+  calibrate(Object.assign({}, base0, { window: 20, seasonWeight: 0 }), BASE_GRID, '20 derniers matchs');
+  const gdOnly = (samples) => samples.forEach((s) => {
+    for (const side of ['home', 'away']) {
+      const se = s.input[side].season;
+      if (se && !se.gdOnly) s.input[side].season = { gp: se.gp, gd: se.gd, gdOnly: true, full: se };
+    }
+  });
+  const fullSeason = (samples) => samples.forEach((s) => {
+    for (const side of ['home', 'away']) {
+      const se = s.input[side].season;
+      if (se && se.gdOnly) s.input[side].season = se.full;
+    }
+  });
+  gdOnly(samples);
+  calibrate(Object.assign({}, base0, { window: 5, seasonWeight: 1 }), Object.assign({ seasonWeight: [0.5, 0.8, 1], seasonPrior: [2, 4, 6, 10] }, BASE_GRID), '5 derniers + classement (diff. de buts)');
+  fullSeason(samples);
+  calibrate(Object.assign({}, base0, { window: 5, seasonWeight: 1 }), Object.assign({ seasonWeight: [0.5, 0.8, 1], seasonPrior: [2, 4, 6, 10] }, BASE_GRID), '5 derniers + classement (buts pour/contre)');
+
   let params = Object.assign({}, E.DEFAULTS, { htShare });
   const GRID = {
     decay: [0.6, 0.7, 0.8, 0.85, 0.9, 1],
@@ -328,7 +388,10 @@ function settle(key, m) {
     oppAdjust: [0, 0.3, 0.6, 0.8, 1],
     h2hWeight: [0, 0.1, 0.25, 0.4, 0.6, 0.8],
     h2hHalfLife: [1, 2.5, 5],
-    rho: [-0.15, -0.1, -0.07, -0.04, 0]
+    rho: [-0.15, -0.1, -0.07, -0.04, 0],
+    window: [5, 8, 10, 15, 20],
+    seasonWeight: [0, 0.5, 0.8, 1],
+    seasonPrior: [2, 4, 6, 10]
   };
   let best = evaluate(train, params, 'model').score;
   for (let pass = 0; pass < 2; pass++) {
@@ -377,7 +440,7 @@ function settle(key, m) {
     }).join(' ; '));
   }
   const out = {};
-  for (const k of ['decay', 'prior', 'oppAdjust', 'h2hWeight', 'h2hHalfLife', 'rho', 'htShare', 'marketWeight']) out[k] = Math.round(params[k] * 1000) / 1000;
+  for (const k of ['decay', 'prior', 'oppAdjust', 'h2hWeight', 'h2hHalfLife', 'rho', 'htShare', 'marketWeight', 'window', 'seasonWeight', 'seasonPrior']) out[k] = Math.round(params[k] * 1000) / 1000;
   out.homeAvg = Math.round(sumH / all.length * 1000) / 1000;
   out.awayAvg = Math.round(sumA / all.length * 1000) / 1000;
   console.log('\nPARAMS=' + JSON.stringify(out));
