@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#070b10">
+  <title>PronoFoot</title>
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="i-ball" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 7.2l3.6 2.6-1.4 4.2H9.8L8.4 9.8z" fill="currentColor"/><path d="M12 7.2V3M15.6 9.8l3.9-1.3M14.2 14l2.4 3.4M9.8 14l-2.4 3.4M8.4 9.8L4.5 8.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></symbol>
+    <symbol id="i-list" viewBox="0 0 24 24"><path d="M8 6h12M8 12h12M8 18h12" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><circle cx="4" cy="6" r="1.4" fill="currentColor"/><circle cx="4" cy="12" r="1.4" fill="currentColor"/><circle cx="4" cy="18" r="1.4" fill="currentColor"/></symbol>
+    <symbol id="i-edit" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16v4zM13.5 6.5l4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+    <symbol id="i-history" viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.4-5.7M4 4v4h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 8v4.5l3 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 11v6M12 7.5v.5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></symbol>
+    <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16 16l4 4" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
+    <symbol id="i-down" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-share" viewBox="0 0 24 24"><circle cx="18" cy="5.5" r="2.6" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="6" cy="12" r="2.6" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="18" cy="18.5" r="2.6" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8.3 10.8l7.4-4M8.3 13.2l7.4 4" stroke="currentColor" stroke-width="2"/></symbol>
+    <symbol id="i-star" viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.8L12 16.8l-5.2 2.8 1-5.8-4.3-4.1 5.9-.8z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v4h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M5 7h14M9 7V4.5h6V7M7 7l1 13h8l1-13" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+  </svg>
+
+  <div id="app">
+    <header class="topbar">
+      <button class="icon-btn hidden" id="btn-back" aria-label="Retour"><svg><use href="#i-back"/></svg></button>
+      <div class="brand" id="brand"><div class="brand-mark"><svg><use href="#i-ball"/></svg></div></div>
+      <h1 id="title">PronoFoot</h1>
+      <button class="icon-btn hidden" id="btn-share" aria-label="Partager"><svg><use href="#i-share"/></svg></button>
+      <button class="icon-btn" id="btn-refresh" aria-label="Actualiser"><svg><use href="#i-refresh"/></svg></button>
+    </header>
+
+    <main>
+      <!-- Matchs -->
+      <section class="screen on" id="scr-matches">
+        <div class="dates" id="dates"></div>
+        <label class="search"><svg><use href="#i-search"/></svg><input id="q" type="search" placeholder="Équipe ou compétition…" autocomplete="off"></label>
+        <div class="filters">
+          <button class="chip on" data-filter="top">Principales</button>
+          <button class="chip" data-filter="all">Toutes</button>
+          <button class="chip" data-filter="pre">À venir</button>
+          <span class="sub" id="count"></span>
+        </div>
+        <div id="list"></div>
+      </section>
+
+      <!-- Analyse d'un match -->
+      <section class="screen" id="scr-match">
+        <div id="match"></div>
+      </section>
+
+      <!-- Analyse manuelle -->
+      <section class="screen" id="scr-manual">
+        <div id="manual"></div>
+      </section>
+
+      <!-- Historique -->
+      <section class="screen" id="scr-history">
+        <div id="history"></div>
+      </section>
+
+      <!-- Infos -->
+      <section class="screen" id="scr-info">
+        <div id="info"></div>
+      </section>
+    </main>
+
+    <nav class="nav">
+      <button class="on" data-tab="matches"><svg><use href="#i-list"/></svg>Matchs</button>
+      <button data-tab="manual"><svg><use href="#i-edit"/></svg>Manuel</button>
+      <button data-tab="history"><svg><use href="#i-history"/></svg>Suivis</button>
+      <button data-tab="info"><svg><use href="#i-info"/></svg>Infos</button>
+    </nav>
+  </div>
+  <div class="toast" id="toast"></div>
+
+  <script src="js/leagues.js"></script>
+  <script src="js/engine.js"></script>
+  <script src="js/stats.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/ui.js"></script>
+</body>
+</html>

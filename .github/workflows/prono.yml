@@ -1,0 +1,135 @@
+name: APK PronoFoot
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - "prono/**"
+      - "tools/prono-*.js"
+      - "tools/test-prono.js"
+      - ".github/workflows/prono.yml"
+      - "settings.gradle.kts"
+      - "build.gradle.kts"
+      - "gradle/**"
+  pull_request:
+    paths:
+      - "prono/**"
+      - "tools/prono-*.js"
+      - "tools/test-prono.js"
+      - ".github/workflows/prono.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: prono-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Compiler PronoFoot
+    runs-on: ubuntu-latest
+    env:
+      # Secrets facultatifs pour signer avec votre propre clé (voir README).
+      KEYSTORE_B64: ${{ secrets.NOVA_KEYSTORE_BASE64 }}
+      NOVA_KEYSTORE_PASSWORD: ${{ secrets.NOVA_KEYSTORE_PASSWORD }}
+      NOVA_KEY_ALIAS: ${{ secrets.NOVA_KEY_ALIAS }}
+      NOVA_KEY_PASSWORD: ${{ secrets.NOVA_KEY_PASSWORD }}
+      NOVA_VERSION_CODE: ${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Tests du moteur et des données (hors ligne)
+        run: node tools/test-prono.js
+
+      - name: Syntaxe des scripts
+        run: for f in prono/src/main/assets/web/js/*.js tools/prono-*.js; do node --check "$f"; done
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Clé de signature personnelle
+        if: ${{ env.KEYSTORE_B64 != '' }}
+        run: |
+          echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.keystore"
+          echo "NOVA_KEYSTORE=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
+
+      - name: Compiler l'APK
+        run: ./gradlew --no-daemon :prono:assembleRelease
+
+      - name: Vérifier la signature et le manifeste
+        run: |
+          BT="$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)"
+          APK=prono/build/outputs/apk/release/prono-release.apk
+          echo "== $APK ($(du -h "$APK" | cut -f1))"
+          "$BT/apksigner" verify --verbose --print-certs "$APK"
+          "$BT/aapt2" dump badging "$APK" | grep -E "^(package|sdkVersion|targetSdkVersion|application-label|launchable-activity|uses-permission)"
+          unzip -l "$APK" | grep -E "assets/web/(index.html|js/(engine|data|ui|leagues).js|css/app.css)"
+
+      - name: Préparer le fichier
+        run: |
+          mkdir -p dist
+          cp prono/build/outputs/apk/release/prono-release.apk "dist/PronoFoot-1.0.${{ github.run_number }}.apk"
+          ls -la dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PronoFoot-apk
+          path: dist/*.apk
+          if-no-files-found: error
+
+      # Lien fixe, toujours à jour, à ouvrir depuis le téléphone :
+      # https://github.com/<propriétaire>/<dépôt>/releases/download/prono-latest/PronoFoot.apk
+      - name: Mettre à jour la version « prono-latest »
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/heads/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp dist/PronoFoot-1.0.*.apk dist/PronoFoot.apk
+          gh release delete prono-latest --yes --cleanup-tag --repo "$GITHUB_REPOSITORY" || true
+          gh release create prono-latest dist/PronoFoot.apk \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease \
+            --title "PronoFoot — dernière version (${GITHUB_REF_NAME} · ${GITHUB_SHA::7})" \
+            --notes "PronoFoot : pronostics de football (1X2, buts, les deux équipes marquent, handicaps, mi-temps, score exact…) calculés à partir des derniers matchs de chaque équipe, des confrontations directes et des cotes de référence. Les probabilités sont des estimations, aucun gain n'est garanti. Android 8.0 ou plus récent, connexion Internet requise."
+
+  # Diagnostics sur les vraies données (réseau) : informatifs, ne bloquent jamais la compilation.
+  sources:
+    name: Sonde des sources de données
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Sources de données (ESPN, football-data…)
+        run: node tools/prono-probe.js
+
+  backtest:
+    name: Calibration et test du modèle (vrais matchs)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Test sur 12 championnats × 5 saisons (football-data.co.uk)
+        run: node tools/prono-backtest.js
+      - name: Compétitions ESPN
+        run: node tools/prono-leagues.js
+      - name: Test de bout en bout (vrais matchs à venir)
+        run: node tools/prono-e2e.js
+      - name: Paris statistiques (corners, cartons, tirs, fautes) sur football-data.co.uk
+        run: node tools/prono-stats-backtest.js
+      - name: Minutes des buts, cartons, penaltys et statistiques ESPN
+        run: node tools/prono-stats.js 35

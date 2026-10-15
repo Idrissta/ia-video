@@ -1,0 +1,95 @@
+/* Prono — compétitions ESPN : noms français, drapeaux et ordre d'affichage.
+ * Identifiants issus de tools/prono-leagues.js ; les autres compétitions
+ * gardent le nom fourni par ESPN.
+ */
+(function (root) {
+  'use strict';
+  const P = root.PRONO || (root.PRONO = {});
+  // [identifiant ESPN, code, nom affiché, drapeau, rang]
+  const LIST = [
+    ['606', 'fifa.world', 'Coupe du monde', '🌍', 1],
+    ['775', 'uefa.champions', 'Ligue des champions', '🇪🇺', 2],
+    ['776', 'uefa.europa', 'Ligue Europa', '🇪🇺', 3],
+    ['20296', 'uefa.europa.conf', 'Ligue Conférence', '🇪🇺', 4],
+    ['3908', 'caf.nations', 'Coupe d’Afrique des nations', '🌍', 5],
+    ['781', 'uefa.euro', 'Euro', '🇪🇺', 6],
+    ['700', 'eng.1', 'Premier League · Angleterre', '🏴󠁧󠁢󠁥󠁮󠁧󠁿', 10],
+    ['740', 'esp.1', 'LaLiga · Espagne', '🇪🇸', 11],
+    ['730', 'ita.1', 'Serie A · Italie', '🇮🇹', 12],
+    ['720', 'ger.1', 'Bundesliga · Allemagne', '🇩🇪', 13],
+    ['710', 'fra.1', 'Ligue 1 · France', '🇫🇷', 14],
+    ['715', 'por.1', 'Liga Portugal', '🇵🇹', 15],
+    ['725', 'ned.1', 'Eredivisie · Pays-Bas', '🇳🇱', 16],
+    ['3901', 'bel.1', 'Pro League · Belgique', '🇧🇪', 17],
+    ['3946', 'tur.1', 'Süper Lig · Turquie', '🇹🇷', 18],
+    ['735', 'sco.1', 'Premiership · Écosse', '🏴󠁧󠁢󠁳󠁣󠁴󠁿', 19],
+    ['21231', 'ksa.1', 'Saudi Pro League · Arabie saoudite', '🇸🇦', 20],
+    ['2391', 'caf.champions', 'Ligue des champions CAF', '🌍', 21],
+    ['18000', 'caf.confed', 'Coupe de la Confédération CAF', '🌍', 22],
+    ['8315', 'caf.nations_qual', 'Qualifications CAN', '🌍', 23],
+    ['790', 'fifa.worldq.caf', 'Qualifications Mondial · Afrique', '🌍', 24],
+    ['8365', 'caf.championship', 'CHAN', '🌍', 25],
+    ['3937', 'rsa.1', 'Premiership · Afrique du Sud', '🇿🇦', 26],
+    ['786', 'fifa.worldq.uefa', 'Qualifications Mondial · Europe', '🇪🇺', 27],
+    ['2395', 'uefa.nations', 'Ligue des nations', '🇪🇺', 28],
+    ['787', 'fifa.worldq.conmebol', 'Qualifications Mondial · Amérique du Sud', '🌎', 29],
+    ['3922', 'fifa.friendly', 'Matchs amicaux internationaux', '🌍', 30],
+    ['3914', 'eng.2', 'Championship · Angleterre', '🏴󠁧󠁢󠁥󠁮󠁧󠁿', 40],
+    ['3921', 'esp.2', 'LaLiga 2 · Espagne', '🇪🇸', 41],
+    ['3931', 'ita.2', 'Serie B · Italie', '🇮🇹', 42],
+    ['3927', 'ger.2', '2. Bundesliga · Allemagne', '🇩🇪', 43],
+    ['3926', 'fra.2', 'Ligue 2 · France', '🇫🇷', 44],
+    ['3918', 'eng.fa', 'FA Cup · Angleterre', '🏴󠁧󠁢󠁥󠁮󠁧󠁿', 45],
+    ['3920', 'eng.league_cup', 'Carabao Cup · Angleterre', '🏴󠁧󠁢󠁥󠁮󠁧󠁿', 46],
+    ['3951', 'esp.copa_del_rey', 'Coupe du Roi · Espagne', '🇪🇸', 47],
+    ['3952', 'fra.coupe_de_france', 'Coupe de France', '🇫🇷', 48],
+    ['3956', 'ita.coppa_italia', 'Coupe d’Italie', '🇮🇹', 49],
+    ['3954', 'ger.dfb_pokal', 'Coupe d’Allemagne', '🇩🇪', 50],
+    ['783', 'conmebol.libertadores', 'Copa Libertadores', '🌎', 51],
+    ['5454', 'conmebol.sudamericana', 'Copa Sudamericana', '🌎', 52],
+    ['630', 'bra.1', 'Brasileirão · Brésil', '🇧🇷', 53],
+    ['745', 'arg.1', 'Liga Profesional · Argentine', '🇦🇷', 54],
+    ['760', 'mex.1', 'Liga MX · Mexique', '🇲🇽', 55],
+    ['770', 'usa.1', 'MLS · États-Unis', '🇺🇸', 56],
+    ['3902', 'afc.champions', 'Ligue des champions AFC', '🌏', 57],
+    ['3939', 'rus.1', 'Premier League · Russie', '🇷🇺', 60],
+    ['3907', 'aut.1', 'Bundesliga · Autriche', '🇦🇹', 61],
+    ['3955', 'gre.1', 'Super League · Grèce', '🇬🇷', 62],
+    ['3913', 'den.1', 'Superliga · Danemark', '🇩🇰', 63],
+    ['3945', 'swe.1', 'Allsvenskan · Suède', '🇸🇪', 64],
+    ['3960', 'nor.1', 'Eliteserien · Norvège', '🇳🇴', 65],
+    ['8376', 'chn.1', 'Super League · Chine', '🇨🇳', 66],
+    ['750', 'jpn.1', 'J1 League · Japon', '🇯🇵', 67],
+    ['3906', 'aus.1', 'A-League · Australie', '🇦🇺', 68],
+    ['8316', 'ind.1', 'Super League · Inde', '🇮🇳', 69],
+    ['4007', 'bra.2', 'Série B · Brésil', '🇧🇷', 70],
+    ['3933', 'ned.2', 'Eerste Divisie · Pays-Bas', '🇳🇱', 71],
+    ['3940', 'sco.2', 'Championship · Écosse', '🏴󠁧󠁢󠁳󠁣󠁴󠁿', 72],
+    ['3915', 'eng.3', 'League One · Angleterre', '🏴󠁧󠁢󠁥󠁮󠁧󠁿', 73],
+    ['3916', 'eng.4', 'League Two · Angleterre', '🏴󠁧󠁢󠁥󠁮󠁧󠁿', 74],
+    ['650', 'col.1', 'Primera A · Colombie', '🇨🇴', 80],
+    ['640', 'chi.1', 'Primera División · Chili', '🇨🇱', 81],
+    ['680', 'uru.1', 'Primera División · Uruguay', '🇺🇾', 82],
+    ['670', 'per.1', 'Liga 1 · Pérou', '🇵🇪', 83],
+    ['660', 'ecu.1', 'LigaPro · Équateur', '🇪🇨', 84],
+    ['3934', 'par.1', 'Primera División · Paraguay', '🇵🇾', 85],
+    ['620', 'bol.1', 'Liga Profesional · Bolivie', '🇧🇴', 86],
+    ['3949', 'ven.1', 'Liga FUTVE · Venezuela', '🇻🇪', 87],
+    ['3903', 'arg.2', 'Nacional B · Argentine', '🇦🇷', 88],
+    ['3932', 'mex.2', 'Liga de Expansión · Mexique', '🇲🇽', 89],
+    ['4002', 'usa.usl.1', 'USL Championship · États-Unis', '🇺🇸', 90],
+    ['3929', 'hon.1', 'Liga Nacional · Honduras', '🇭🇳', 91],
+    ['4005', 'crc.1', 'Primera División · Costa Rica', '🇨🇷', 92],
+    ['3928', 'gua.1', 'Liga Nacional · Guatemala', '🇬🇹', 93],
+    ['3943', 'slv.1', 'Primera División · Salvador', '🇸🇻', 94],
+    ['19834', 'club.friendly', 'Matchs amicaux de clubs', '🤝', 500],
+    ['5487', 'usa.ncaa.m.1', 'NCAA (universitaire) · États-Unis', '🇺🇸', 900],
+    ['5499', 'usa.ncaa.w.1', 'NCAA féminin · États-Unis', '🇺🇸', 950]
+  ];
+  // Compétitions féminines : affichées seulement avec le filtre « Toutes ».
+  const WOMEN = ['795', '8301', '19868', '19728', '24081', '19483', '8097', '24405', '20649', '3923', '23088', '23633', '24458', '20226', '23390', '20956', '20381', '20955', '18992', '22060', '22946', '18969', '17915', '20703', '23541', '21191', '23537', '23523', '23286', '24079', '20115', '19945', '20865', '5342'];
+  const byId = {};
+  for (const [id, slug, fr, flag, rank] of LIST) byId[id] = { id, slug, fr, flag, rank, top: rank < 200 };
+  for (const id of WOMEN) byId[id] = byId[id] || { id, slug: '', fr: '', flag: '', rank: 960, top: false, women: true };
+  P.Leagues = { byId, list: LIST };
+})(typeof window !== 'undefined' ? window : globalThis);

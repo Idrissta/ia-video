@@ -1,0 +1,114 @@
+name: APK Vélo Champion
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+    paths:
+      - "velo/**"
+      - "tools/test-velo.js"
+      - ".github/workflows/velo.yml"
+      - "settings.gradle.kts"
+      - "build.gradle.kts"
+      - "gradle/**"
+  pull_request:
+    paths:
+      - "velo/**"
+      - "tools/test-velo.js"
+      - ".github/workflows/velo.yml"
+      - "settings.gradle.kts"
+      - "build.gradle.kts"
+      - "gradle/**"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: velo-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Compiler Vélo Champion
+    runs-on: ubuntu-latest
+    env:
+      # Secrets facultatifs pour signer avec votre propre clé (voir README).
+      KEYSTORE_B64: ${{ secrets.NOVA_KEYSTORE_BASE64 }}
+      NOVA_KEYSTORE_PASSWORD: ${{ secrets.NOVA_KEYSTORE_PASSWORD }}
+      NOVA_KEY_ALIAS: ${{ secrets.NOVA_KEY_ALIAS }}
+      NOVA_KEY_PASSWORD: ${{ secrets.NOVA_KEY_PASSWORD }}
+      NOVA_VERSION_CODE: ${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Tests du jeu (progression, tracés, équilibrage)
+        run: node tools/test-velo.js
+
+      - name: Syntaxe des scripts
+        run: for f in velo/src/main/assets/web/js/*.js; do node --check "$f"; done
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Clé de signature personnelle
+        if: ${{ env.KEYSTORE_B64 != '' }}
+        run: |
+          echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.keystore"
+          echo "NOVA_KEYSTORE=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
+
+      - name: Compiler l'APK (Google Play) et l'APK de test
+        run: ./gradlew --no-daemon :velo:assembleRelease :velo:assembleDebug
+
+      - name: Vérifier les signatures et les manifestes
+        run: |
+          BT="$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)"
+          for APK in velo/build/outputs/apk/release/velo-release.apk velo/build/outputs/apk/debug/velo-debug.apk; do
+            echo "== $APK ($(du -h "$APK" | cut -f1))"
+            "$BT/apksigner" verify --verbose --print-certs "$APK"
+            "$BT/aapt2" dump badging "$APK" | grep -E "^(package|sdkVersion|targetSdkVersion|application-label|launchable-activity|uses-permission)"
+          done
+
+      - name: Préparer les fichiers
+        run: |
+          mkdir -p dist
+          cp velo/build/outputs/apk/release/velo-release.apk "dist/VeloChampion-1.0.${{ github.run_number }}.apk"
+          cp velo/build/outputs/apk/debug/velo-debug.apk "dist/VeloChampion-TEST-1.0.${{ github.run_number }}.apk"
+          ls -la dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: VeloChampion-apk
+          path: dist/*.apk
+          if-no-files-found: error
+
+      # Liens fixes, toujours à jour, à ouvrir depuis le téléphone :
+      # https://github.com/<propriétaire>/<dépôt>/releases/download/velo-latest/VeloChampion.apk
+      # https://github.com/<propriétaire>/<dépôt>/releases/download/velo-latest/VeloChampion-TEST.apk
+      - name: Mettre à jour la version « velo-latest »
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/heads/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp dist/VeloChampion-1.0.*.apk dist/VeloChampion.apk
+          cp dist/VeloChampion-TEST-1.0.*.apk dist/VeloChampion-TEST.apk
+          gh release delete velo-latest --yes --cleanup-tag --repo "$GITHUB_REPOSITORY" || true
+          gh release create velo-latest dist/VeloChampion.apk dist/VeloChampion-TEST.apk \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease \
+            --title "Vélo Champion — dernière version (${GITHUB_REF_NAME} · ${GITHUB_SHA::7})" \
+            --notes "VeloChampion-TEST.apk : version de test, tous les vélos se débloquent gratuitement (achats simulés) pour essayer les 5 niveaux. VeloChampion.apk : version de production, vélos payants via Google Play (les achats fonctionnent une fois l'application publiée sur le Play Store). Android 8.0 ou plus récent."
+
+      - name: Publier une version (tags v*)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.apk
+          generate_release_notes: true
