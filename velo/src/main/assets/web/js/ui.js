@@ -132,13 +132,16 @@
       root.addEventListener('blur', () => {
         this.keys = {};
       });
-      root.addEventListener('deviceorientation', (e) => {
-        if (e.beta === null) return;
-        const angle = (screen.orientation && screen.orientation.angle) || root.orientation || 0;
-        let v = e.beta;
-        if (angle === 270 || angle === -90) v = -v;
-        else if (angle === 0 || angle === 180) v = angle === 180 ? -e.gamma : e.gamma;
-        this.tiltRaw = v;
+      // Inclinaison « volant » : on lit la gravité le long du grand côté du téléphone.
+      root.addEventListener('devicemotion', (e) => {
+        const g = e.accelerationIncludingGravity;
+        if (!g || g.x === null || g.y === null) return;
+        const angle = ((screen.orientation && screen.orientation.angle) || root.orientation || 0) % 360;
+        let v;
+        if (angle === 90) v = g.y;
+        else if (angle === 270 || angle === -90) v = -g.y;
+        else v = angle === 180 ? g.x : -g.x;
+        this.tiltRaw = VC.approach(this.tiltRaw, v, 12, 1 / 60);
       });
     },
 
@@ -159,7 +162,8 @@
       if (this.left || k.ArrowLeft || k.KeyA || k.KeyQ) steer -= 1;
       if (this.right || k.ArrowRight || k.KeyD) steer += 1;
       if (Save.state.settings.controls === 'tilt' && this.tiltZero !== null && steer === 0) {
-        steer = VC.clamp((this.tiltRaw - this.tiltZero) / 16, -1, 1);
+        // ≈ 25° d'inclinaison pour braquer à fond.
+        steer = VC.clamp((this.tiltRaw - this.tiltZero) / 4.1, -1, 1);
         if (Math.abs(steer) < 0.06) steer = 0;
       }
       return { steer, sprint: this.sprint || !!(k.Space || k.ArrowUp || k.KeyW || k.KeyZ) };

@@ -337,7 +337,7 @@
       }
     },
     lamp: {
-      px: [90, 420], world: [600, 3500], glow: { color: '#ffd98a', r: 1.6, y: 0.06 }, draw(ctx, w, h, t) {
+      px: [90, 420], world: [600, 3500], glow: { color: '#ffd98a', r: 3.2, y: 0.075 }, draw(ctx, w, h, t) {
         ctx.fillStyle = lin(ctx, 0, 0, w, 0, [['#2b2f36'], ['#6b737e', 0.45], ['#22262c']]);
         ctx.fillRect(w * 0.42, h * 0.06, w * 0.16, h * 0.94);
         ctx.fillRect(w * 0.34, h * 0.94, w * 0.32, h * 0.06);
