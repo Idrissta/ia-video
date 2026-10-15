@@ -129,3 +129,7 @@ jobs:
         run: node tools/prono-leagues.js
       - name: Test de bout en bout (vrais matchs à venir)
         run: node tools/prono-e2e.js
+      - name: Paris statistiques (corners, cartons, tirs, fautes) sur football-data.co.uk
+        run: node tools/prono-stats-backtest.js
+      - name: Minutes des buts, cartons, penaltys et statistiques ESPN
+        run: node tools/prono-stats.js 35
