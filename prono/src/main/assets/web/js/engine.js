@@ -16,22 +16,23 @@
   'use strict';
   const P = root.PRONO || (root.PRONO = {});
   const E = P.Engine = {};
+  E.lastHtShare = 0.448;
 
   /** Paramètres par défaut (calibrés par tools/prono-backtest.js). */
   E.DEFAULTS = {
-    homeAvg: 1.52,        // buts par match de l'équipe à domicile (moyenne de ligue)
-    awayAvg: 1.19,        // buts par match de l'équipe à l'extérieur
-    decay: 0.85,          // poids d'un match par rang d'ancienneté (le plus récent = 1)
-    prior: 4,             // « matchs moyens » ajoutés en a priori (rétrécissement)
-    oppAdjust: 0.6,       // correction par la force des adversaires (0 = aucune)
-    h2hWeight: 0.25,      // poids des confrontations directes
-    h2hHalfLife: 2.5,     // demi-vie (années) d'une confrontation directe
-    rho: -0.07,           // correction Dixon-Coles
-    htShare: 0.445,       // part des buts marqués en 1re mi-temps
-    marketWeight: 0.6,    // poids des cotes dans la combinaison modèle + marché
-    window: 5,            // nombre de matchs récents utilisés par équipe
-    seasonWeight: 0,      // poids du classement de la saison comme centre du rétrécissement
-    seasonPrior: 6,       // matchs « fictifs » ajoutés au classement
+    homeAvg: 1.533,       // buts par match de l'équipe qui reçoit (12 championnats, 2021-2026)
+    awayAvg: 1.236,       // buts par match de l'équipe qui se déplace
+    decay: 0.95,          // poids d'un match par rang d'ancienneté (le plus récent = 1)
+    prior: 12,            // « matchs moyens » ajoutés en a priori (rétrécissement)
+    oppAdjust: 0,         // correction par la force des adversaires (sans gain mesuré)
+    h2hWeight: 0.2,       // poids des confrontations directes
+    h2hHalfLife: 5,       // demi-vie (années) d'une confrontation directe
+    rho: -0.05,           // correction Dixon-Coles
+    htShare: 0.448,       // part des buts marqués en 1re mi-temps (mesurée)
+    marketWeight: 0.85,   // poids des cotes de référence quand elles existent
+    window: 20,           // matchs récents utilisés par équipe (20 > 10 > 5 au test)
+    seasonWeight: 0,      // poids du classement de la saison (sans gain au test)
+    seasonPrior: 6,
     maxGoals: 10
   };
 
@@ -317,6 +318,7 @@
     const r = p.htShare;
     const h1 = E.matrix(lh * r, la * r, 0, n);
     const h2 = E.matrix(lh * (1 - r), la * (1 - r), 0, n);
+    E.lastHtShare = r;
     const markets = E.markets(ft, h1, h2, input.names || { home: 'Domicile', away: 'Extérieur' }, lh, la);
     const model = { lh: base.lh, la: base.la };
     const out = {
@@ -345,6 +347,7 @@
   /* --------------------------------------------------------------------- */
 
   const pct = (x) => Math.max(0, Math.min(1, x));
+  const fx = (v) => String(v).replace('.', ',');
   const fair = (prob) => (prob > 0.0001 ? 1 / prob : null);
   const sel = (key, label, prob, extra) => Object.assign({ key, label, p: pct(prob), fair: fair(prob) }, extra || {});
 
@@ -408,15 +411,15 @@
     for (const L of [0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5]) {
       let under = 0;
       for (let k = 0; k < L; k++) under += b.tot[k] || 0;
-      totals.push(sel('O' + L, 'Plus de ' + L, 1 - under), sel('U' + L, 'Moins de ' + L, under));
+      totals.push(sel('O' + L, 'Plus de ' + fx(L), 1 - under), sel('U' + L, 'Moins de ' + fx(L), under));
     }
     add('total', 'Buts', 'Total de buts', totals);
     const atot = [];
     for (const L of [1.75, 2, 2.25, 2.75, 3, 3.25]) {
       const over = E.asian(totalDist.map(([v, pr]) => [v, pr]), -L);
       const under = E.asian(totalDist.map(([v, pr]) => [-v, pr]), L);
-      atot.push(sel('AO' + L, 'Plus de ' + L, over.win + over.push / 2, { fair: over.fair, push: over.push, asian: over }),
-        sel('AU' + L, 'Moins de ' + L, under.win + under.push / 2, { fair: under.fair, push: under.push, asian: under }));
+      atot.push(sel('AO' + L, 'Plus de ' + fx(L), over.win + over.push / 2, { fair: over.fair, push: over.push, asian: over }),
+        sel('AU' + L, 'Moins de ' + fx(L), under.win + under.push / 2, { fair: under.fair, push: under.push, asian: under }));
     }
     add('atotal', 'Buts', 'Total asiatique', atot, 'Lignes .25/.75 : moitié gagnée ou remboursée');
     for (const [id, team, idx] of [['it1', H, 0], ['it2', A, 1]]) {
@@ -427,7 +430,7 @@
       for (const L of [0.5, 1.5, 2.5, 3.5]) {
         let u = 0;
         for (let k = 0; k < L; k++) u += marg[k];
-        s.push(sel(id + 'O' + L, 'Plus de ' + L, 1 - u), sel(id + 'U' + L, 'Moins de ' + L, u));
+        s.push(sel(id + 'O' + L, 'Plus de ' + fx(L), 1 - u), sel(id + 'U' + L, 'Moins de ' + fx(L), u));
       }
       add(id, 'Buts', 'Total individuel ' + (idx + 1) + ' · ' + team, s, 'Buts attendus : ' + lam.toFixed(2).replace('.', ','));
     }
@@ -440,6 +443,23 @@
       add('exact', 'Buts', 'Nombre exact de buts', s);
     }
     {
+      const s = [];
+      for (const N of [1, 2, 3, 4]) {
+        s.push(sel('T3O' + N, 'Plus de ' + N, sum((i, j) => i + j > N)), sel('T3E' + N, 'Exactement ' + N, b.tot[N] || 0), sel('T3U' + N, 'Moins de ' + N, sum((i, j) => i + j < N)));
+      }
+      add('total3', 'Buts', 'Total (3 issues)', s);
+    }
+    {
+      const s = [];
+      for (const [lo, hi] of [[0, 1], [2, 3], [4, 5], [6, 99], [1, 2], [1, 3], [2, 4], [3, 4]]) {
+        let pr = 0;
+        for (let k = lo; k <= Math.min(hi, b.tot.length - 1); k++) pr += b.tot[k];
+        s.push(sel('MB' + lo + '-' + hi, hi > 50 ? lo + ' buts ou plus' : lo + ' à ' + hi + ' buts', pr));
+      }
+      add('multigoals', 'Buts', 'Intervalle de buts', s);
+    }
+    add('each2', 'Buts', 'Chaque équipe marque 2 buts ou plus', [sel('E2Y', 'Oui', sum((i, j) => i >= 2 && j >= 2)), sel('E2N', 'Non', 1 - sum((i, j) => i >= 2 && j >= 2))]);
+    {
       const even = sum((i, j) => (i + j) % 2 === 0);
       add('oddeven', 'Buts', 'Pair / Impair', [sel('EVEN', 'Pair', even), sel('ODD', 'Impair', 1 - even)]);
     }
@@ -451,20 +471,21 @@
     // --- Handicaps
     const eh = [];
     for (const L of [-2, -1, 1, 2]) {
-      const t = (L > 0 ? '+' : '') + L;
-      eh.push(sel('EH1' + t, H + ' (' + t + ')', sum((i, j) => i + L > j)),
-        sel('EHX' + t, 'Nul (' + t + ')', sum((i, j) => i + L === j)),
-        sel('EH2' + t, A + ' (' + (L > 0 ? '-' : '+') + Math.abs(L) + ')', sum((i, j) => i + L < j)));
+      const t = (L > 0 ? '+' : '') + fx(L);
+      const k = (L > 0 ? '+' : '') + L;
+      eh.push(sel('EH1' + k, H + ' (' + t + ')', sum((i, j) => i + L > j)),
+        sel('EHX' + k, 'Nul (' + t + ')', sum((i, j) => i + L === j)),
+        sel('EH2' + k, A + ' (' + (L > 0 ? '-' : '+') + Math.abs(L) + ')', sum((i, j) => i + L < j)));
     }
     add('eh', 'Handicaps', 'Handicap européen', eh, 'Handicap appliqué à ' + H);
     const ah = [];
     for (const L of [-2.5, -2, -1.5, -1.25, -1, -0.75, -0.5, -0.25, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 2.5]) {
       const r1 = E.asian(marginDist, L);
-      const t = (L > 0 ? '+' : '') + L;
-      ah.push(sel('AH1' + t, H + ' (' + t + ')', r1.win + r1.push / 2, { fair: r1.fair, push: r1.push, asian: r1 }));
+      const t = (L > 0 ? '+' : '') + fx(L);
+      ah.push(sel('AH1' + (L > 0 ? '+' : '') + L, H + ' (' + t + ')', r1.win + r1.push / 2, { fair: r1.fair, push: r1.push, asian: r1 }));
       const r2 = E.asian(marginDist.map(([v, pr]) => [-v, pr]), -L);
-      const t2 = (-L > 0 ? '+' : '') + -L;
-      ah.push(sel('AH2' + t2, A + ' (' + t2 + ')', r2.win + r2.push / 2, { fair: r2.fair, push: r2.push, asian: r2 }));
+      const t2 = (-L > 0 ? '+' : '') + fx(-L);
+      ah.push(sel('AH2' + (-L > 0 ? '+' : '') + -L, A + ' (' + t2 + ')', r2.win + r2.push / 2, { fair: r2.fair, push: r2.push, asian: r2 }));
     }
     add('ah', 'Handicaps', 'Handicap asiatique', ah, 'Ligne entière : remboursé si égalité ; ligne .25/.75 : moitié');
     {
@@ -480,8 +501,8 @@
     const rt = [];
     for (const L of [1.5, 2.5, 3.5]) {
       for (const [k, lbl, f] of [['1', 'V1', (i, j) => i > j], ['X', 'Nul', (i, j) => i === j], ['2', 'V2', (i, j) => i < j]]) {
-        rt.push(sel('RT' + k + 'O' + L, lbl + ' et plus de ' + L, sum((i, j) => f(i, j) && i + j > L)));
-        rt.push(sel('RT' + k + 'U' + L, lbl + ' et moins de ' + L, sum((i, j) => f(i, j) && i + j < L)));
+        rt.push(sel('RT' + k + 'O' + L, lbl + ' et plus de ' + fx(L), sum((i, j) => f(i, j) && i + j > L)));
+        rt.push(sel('RT' + k + 'U' + L, lbl + ' et moins de ' + fx(L), sum((i, j) => f(i, j) && i + j < L)));
       }
     }
     add('restotal', 'Combinés', 'Résultat + Total', rt);
@@ -494,8 +515,8 @@
     const dt = [];
     for (const L of [1.5, 2.5, 3.5]) {
       for (const [k, f] of [['1X', (i, j) => i >= j], ['12', (i, j) => i !== j], ['X2', (i, j) => i <= j]]) {
-        dt.push(sel('DT' + k + 'O' + L, k + ' et plus de ' + L, sum((i, j) => f(i, j) && i + j > L)));
-        dt.push(sel('DT' + k + 'U' + L, k + ' et moins de ' + L, sum((i, j) => f(i, j) && i + j < L)));
+        dt.push(sel('DT' + k + 'O' + L, k + ' et plus de ' + fx(L), sum((i, j) => f(i, j) && i + j > L)));
+        dt.push(sel('DT' + k + 'U' + L, k + ' et moins de ' + fx(L), sum((i, j) => f(i, j) && i + j < L)));
       }
     }
     add('dctotal', 'Combinés', 'Double chance + Total', dt);
@@ -503,6 +524,18 @@
       sel('WTN1', H + ' gagne sans encaisser', sum((i, j) => i > j && j === 0)),
       sel('WTN2', A + ' gagne sans encaisser', sum((i, j) => j > i && i === 0))
     ]);
+    add('clean', 'Combinés', 'N\u2019encaisse pas de but', [
+      sel('CS1', H + ' n\u2019encaisse pas', sum((i, j) => j === 0)),
+      sel('CS2', A + ' n\u2019encaisse pas', sum((i) => i === 0))
+    ]);
+    {
+      const s = [];
+      for (const [k, f] of [['1X', (i, j) => i >= j], ['12', (i, j) => i !== j], ['X2', (i, j) => i <= j]]) {
+        s.push(sel('DB' + k + 'Y', k + ' et les deux marquent', sum((i, j) => f(i, j) && i > 0 && j > 0)));
+        s.push(sel('DB' + k + 'N', k + ' et pas les deux', sum((i, j) => f(i, j) && !(i > 0 && j > 0))));
+      }
+      add('dcbtts', 'Combinés', 'Double chance + Les deux marquent', s);
+    }
     add('btotal', 'Combinés', 'Les deux marquent + Total', [
       sel('BTO2.5', 'Les deux marquent et plus de 2,5', sum((i, j) => i > 0 && j > 0 && i + j > 2.5)),
       sel('BTU2.5', 'Les deux marquent et moins de 2,5', sum((i, j) => i > 0 && j > 0 && i + j < 2.5)),
@@ -534,6 +567,30 @@
       c.sort((x, y) => y[2] - x[2]);
       add('htcs', 'Mi-temps', '1re mi-temps · Score exact', c.slice(0, 8).map(([i, j, pr]) => sel('HCS' + i + '-' + j, i + ' - ' + j, pr)));
     }
+    {
+      const hm = (m, f) => {
+        let t = 0;
+        for (let i = 0; i < m.length; i++) for (let j = 0; j < m.length; j++) if (f(i, j)) t += m[i][j];
+        return t;
+      };
+      add('htteam', 'Mi-temps', '1re mi-temps · Total individuel', [
+        sel('H1O0.5', H + ' plus de 0,5', hm(h1, (i) => i > 0)), sel('H1U0.5', H + ' moins de 0,5', hm(h1, (i) => i === 0)),
+        sel('H2O0.5', A + ' plus de 0,5', hm(h1, (i, j) => j > 0)), sel('H2U0.5', A + ' moins de 0,5', hm(h1, (i, j) => j === 0)),
+        sel('H1O1.5', H + ' plus de 1,5', hm(h1, (i) => i > 1)), sel('H2O1.5', A + ' plus de 1,5', hm(h1, (i, j) => j > 1))
+      ]);
+      add('htah', 'Mi-temps', '1re mi-temps · Handicap', [
+        sel('HAH1-0.5', H + ' (-0,5)', hm(h1, (i, j) => i > j)), sel('HAH2+0.5', A + ' (+0,5)', hm(h1, (i, j) => j >= i)),
+        sel('HAH1+0.5', H + ' (+0,5)', hm(h1, (i, j) => i >= j)), sel('HAH2-0.5', A + ' (-0,5)', hm(h1, (i, j) => j > i)),
+        sel('HAH1-1.5', H + ' (-1,5)', hm(h1, (i, j) => i - j >= 2)), sel('HAH2-1.5', A + ' (-1,5)', hm(h1, (i, j) => j - i >= 2))
+      ]);
+      const he = hm(h1, (i, j) => (i + j) % 2 === 0);
+      add('htoddeven', 'Mi-temps', '1re mi-temps · Pair / Impair', [sel('HEVEN', 'Pair', he), sel('HODD', 'Impair', 1 - he)]);
+      add('2hbtts', 'Mi-temps', '2e mi-temps · Les deux marquent', [sel('SBY', 'Oui', hb2.btts), sel('SBN', 'Non', 1 - hb2.btts)]);
+      add('2hteam', 'Mi-temps', '2e mi-temps · Total individuel', [
+        sel('S1O0.5', H + ' plus de 0,5', hm(h2, (i) => i > 0)), sel('S1U0.5', H + ' moins de 0,5', hm(h2, (i) => i === 0)),
+        sel('S2O0.5', A + ' plus de 0,5', hm(h2, (i, j) => j > 0)), sel('S2U0.5', A + ' moins de 0,5', hm(h2, (i, j) => j === 0))
+      ]);
+    }
     add('2h1x2', 'Mi-temps', '2e mi-temps · 1X2', [sel('S1', 'V1', hb2.h), sel('SX', 'Nul', hb2.d), sel('S2', 'V2', hb2.a)]);
     add('2htotal', 'Mi-temps', '2e mi-temps · Total', [
       sel('SO0.5', 'Plus de 0,5', hb2.o05), sel('SU0.5', 'Moins de 0,5', 1 - hb2.o05),
@@ -551,6 +608,8 @@
     let win2Either = 0;
     let win1Both = 0;
     let win2Both = 0;
+    let bttsBoth = 0;
+    const tHalf = [[0, 0, 0], [0, 0, 0]];
     const m = Math.min(n, 7);
     const res = (x, y) => (x > y ? '1' : x === y ? 'X' : '2');
     for (let a = 0; a <= m; a++) {
@@ -575,6 +634,9 @@
             if (c > a || e > d) win2Either += pr;
             if (a > c && d > e) win1Both += pr;
             if (c > a && e > d) win2Both += pr;
+            if (a > 0 && c > 0 && d > 0 && e > 0) bttsBoth += pr;
+            tHalf[0][a > d ? 0 : a < d ? 1 : 2] += pr;
+            tHalf[1][c > e ? 0 : c < e ? 1 : 2] += pr;
           }
         }
       }
@@ -588,10 +650,35 @@
     add('teamhalves', 'Mi-temps', 'Équipe marque dans les deux mi-temps', [sel('T1BH', H, t1Both), sel('T2BH', A, t2Both)]);
     add('wineither', 'Mi-temps', 'Gagne au moins une mi-temps', [sel('WE1', H, win1Either), sel('WE2', A, win2Either)]);
     add('winboth', 'Mi-temps', 'Gagne les deux mi-temps', [sel('WB1', H, win1Both), sel('WB2', A, win2Both)]);
+    add('bttsboth', 'Mi-temps', 'Les deux marquent dans les deux mi-temps', [sel('BBY', 'Oui', bttsBoth), sel('BBN', 'Non', 1 - bttsBoth)]);
+    add('teamhsh', 'Mi-temps', 'Mi-temps la plus prolifique par équipe', [
+      sel('TH11', H + ' : 1re', tHalf[0][0]), sel('TH12', H + ' : 2e', tHalf[0][1]), sel('TH1X', H + ' : égalité', tHalf[0][2]),
+      sel('TH21', A + ' : 1re', tHalf[1][0]), sel('TH22', A + ' : 2e', tHalf[1][1]), sel('TH2X', A + ' : égalité', tHalf[1][2])
+    ]);
+    {
+      const r = lh + la > 0 ? (h1[0][0] < 1 ? 1 - h1[0][0] : 0) : 0;
+      const none = ft[0][0];
+      add('firsthalfgoal', 'Mi-temps', 'Mi-temps du premier but', [sel('FH1', '1re mi-temps', r), sel('FH2', '2e mi-temps', Math.max(0, 1 - r - none)), sel('FH0', 'Aucun but', none)]);
+    }
     {
       const none = ft[0][0];
       const first1 = (1 - none) * lh / (lh + la);
       add('firstgoal', 'Buts', 'Premier but', [sel('FG1', H, first1), sel('FG0', 'Aucun but', none), sel('FG2', A, 1 - none - first1)]);
+      add('lastgoal', 'Buts', 'Dernier but', [sel('LG1', H, first1), sel('LG0', 'Aucun but', none), sel('LG2', A, 1 - none - first1)]);
+      // Moment du premier but : intensités constantes par mi-temps (45 + 45 min).
+      const rate1 = (lh + la) * E.lastHtShare / 45;
+      const rate2 = (lh + la) * (1 - E.lastHtShare) / 45;
+      const surv = (t) => (t <= 45 ? Math.exp(-rate1 * t) : Math.exp(-rate1 * 45 - rate2 * (t - 45)));
+      const s = [];
+      let prev = 1;
+      for (const [a, b2] of [[0, 15], [16, 30], [31, 45], [46, 60], [61, 75], [76, 90]]) {
+        const end = b2 === 45 ? 45 : b2;
+        const cur = surv(end);
+        s.push(sel('FT' + a, a + '-' + b2 + ' min', prev - cur));
+        prev = cur;
+      }
+      s.push(sel('FTN', 'Aucun but', prev));
+      add('firstgoaltime', 'Buts', 'Moment du premier but', s, 'Temps additionnel compté dans la tranche');
     }
     return M;
   };
@@ -655,6 +742,62 @@
     for (const mk of res.markets) for (const s of mk.sels) if (s.ev != null && s.ev > 0.04 && s.p >= 0.2) values.push({ market: mk.name, label: s.label, p: s.p, odd: s.odd, ev: s.ev, fair: s.fair });
     values.sort((a, b) => b.ev - a.ev);
     return { main: out[0] || null, list: out, values: values.slice(0, 8) };
+  };
+
+  /**
+   * Règlement d'une sélection une fois le match terminé.
+   * r = { hg, ag, hthg?, htag? }. Renvoie 'won', 'lost', 'push', 'half-won',
+   * 'half-lost' ou null si la sélection n'est pas vérifiable automatiquement.
+   */
+  E.settle = function (key, r) {
+    const h = r.hg;
+    const a = r.ag;
+    const t = h + a;
+    const hh = r.hthg;
+    const ha = r.htag;
+    const ht = hh + ha;
+    const ok = (c) => (c ? 'won' : 'lost');
+    let m;
+    const simple = {
+      '1': h > a, X: h === a, '2': h < a, '1X': h >= a, X2: h <= a, '12': h !== a,
+      BTTS_Y: h > 0 && a > 0, BTTS_N: !(h > 0 && a > 0), S1Y: h > 0, S1N: h === 0, S2Y: a > 0, S2N: a === 0,
+      EVEN: t % 2 === 0, ODD: t % 2 === 1, WTN1: h > a && a === 0, WTN2: a > h && h === 0, CS1: a === 0, CS2: h === 0,
+      E2Y: h >= 2 && a >= 2, E2N: !(h >= 2 && a >= 2)
+    };
+    if (key in simple) return ok(simple[key]);
+    if ((m = key.match(/^([OU])(\d+\.5)$/))) return ok(m[1] === 'O' ? t > +m[2] : t < +m[2]);
+    if ((m = key.match(/^it([12])([OU])(\d+\.5)$/))) {
+      const g = m[1] === '1' ? h : a;
+      return ok(m[2] === 'O' ? g > +m[3] : g < +m[3]);
+    }
+    if ((m = key.match(/^EX(\d)$/))) return ok(+m[1] === 6 ? t >= 6 : t === +m[1]);
+    if ((m = key.match(/^CS(\d+)-(\d+)$/))) return ok(h === +m[1] && a === +m[2]);
+    if (key === 'DNB1' || key === 'DNB2') return h === a ? 'push' : ok(key === 'DNB1' ? h > a : a > h);
+    if ((m = key.match(/^AH([12])([+-][\d.]+)$/) || key.match(/^(AO|AU)()([\d.]+)$/))) {
+      if (m[1] === '1' || m[1] === '2') m = ['', 'AH', m[1], m[2]];
+      const L = parseFloat(m[3]);
+      const parts = Math.abs(L * 4) % 2 === 1 ? [L - 0.25, L + 0.25] : [L];
+      let score = 0;
+      for (const x of parts) {
+        let v;
+        if (m[1] === 'AH') v = (m[2] === '1' ? h - a : a - h) + x;
+        else if (m[1] === 'AO') v = t - x;
+        else v = x - t;
+        score += v > 1e-9 ? 1 : v < -1e-9 ? -1 : 0;
+      }
+      if (parts.length === 2) return score === 2 ? 'won' : score === 1 ? 'half-won' : score === 0 ? 'push' : score === -1 ? 'half-lost' : 'lost';
+      return score > 0 ? 'won' : score < 0 ? 'lost' : 'push';
+    }
+    if (!isFinite(ht)) return null;
+    const htSimple = { H1: hh > ha, HX: hh === ha, H2: hh < ha, H1X: hh >= ha, HX2: hh <= ha, H12: hh !== ha, HBY: hh > 0 && ha > 0, HBN: !(hh > 0 && ha > 0) };
+    if (key in htSimple) return ok(htSimple[key]);
+    if ((m = key.match(/^H([OU])(\d+\.5)$/))) return ok(m[1] === 'O' ? ht > +m[2] : ht < +m[2]);
+    if ((m = key.match(/^HF([12X])([12X])$/))) {
+      const rr = (x, y) => (x > y ? '1' : x === y ? 'X' : '2');
+      return ok(rr(hh, ha) === m[1] && rr(h, a) === m[2]);
+    }
+    if (key === 'BHY' || key === 'BHN') return ok((ht > 0 && t - ht > 0) === (key === 'BHY'));
+    return null;
   };
 
   /* --------------------------------------------------------------------- */

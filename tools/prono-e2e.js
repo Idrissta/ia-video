@@ -36,6 +36,7 @@ const pct = (x) => (100 * x).toFixed(0) + ' %';
         const res = P.Engine.analyze(P.Data.engineInput(m, m.odds || {}));
         const main = res.picks.main;
         console.log('  ' + e.league.name + ' · ' + m.home.name + ' – ' + m.away.name + ' : forme ' + m.home.games.length + '/' + m.away.games.length +
+          ' (historique ' + m.home.recent.length + '/' + m.away.recent.length + ')' +
           ' matchs, face-à-face ' + m.h2h.length + ', classement ' + (m.home.standing ? 'oui' : 'non') + ', cotes ' + (m.odds ? m.odds.provider : 'non') +
           ' → buts attendus ' + res.lh.toFixed(2) + '–' + res.la.toFixed(2) + ' ; 1X2 ' + pct(res.markets[0].sels[0].p) + '/' + pct(res.markets[0].sels[1].p) + '/' + pct(res.markets[0].sels[2].p) +
           ' ; pronostic : ' + (main ? main.label + ' (' + main.market + ') ' + pct(main.p) : '—'));

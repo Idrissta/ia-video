@@ -74,11 +74,15 @@
     const m = /~l:(\d+)/.exec(ev.uid || '');
     const id = m ? m[1] : '';
     const c = ev.competitions && ev.competitions[0];
-    const known = P.Leagues && P.Leagues.byId[id];
-    let name = (known && known.fr) || (c && c.altGameNote) || '';
+    const known = (P.Leagues && P.Leagues.byId[id]) || null;
+    const note = (c && c.altGameNote) || '';
+    const stage = note.indexOf(',') > 0 ? note.slice(note.indexOf(',') + 1).trim() : '';
+    let name = (known && known.fr) || note.split(',')[0].trim();
     if (!name && ev.season && ev.season.slug && /\d{4}/.test(ev.season.slug)) name = humanize(ev.season.slug);
-    if (!name && known) name = known.name;
-    return { id, name: name || 'Autre compétition', rank: known ? known.rank : 999, country: known ? known.country : '' };
+    return {
+      id, name: name || 'Autre compétition', stage, flag: (known && known.flag) || '⚽',
+      rank: known ? known.rank : 300, top: known ? known.top : false, women: !!(known && known.women)
+    };
   };
 
   /** Cotes de référence d'un évènement ou d'un résumé (format ESPN). */
@@ -228,6 +232,7 @@
         opponent: (g.opponent && g.opponent.displayName) || '?',
         oppLogo: g.opponent ? logoOf(g.opponent) : '',
         competition: g.leagueName || g.competitionName || '',
+        oppId,
         opp: strengthFromStanding(ctx.table[oppId], ctx.mu),
         w: sameComp ? 1 : 0.75
       };
@@ -302,9 +307,82 @@
     };
   };
 
+  /** Matchs terminés d'une équipe dans un calendrier ESPN (toutes compétitions). */
+  D.parseSchedule = function (j, teamId, ctx) {
+    const out = [];
+    for (const ev of (j && j.events) || []) {
+      const c = ev.competitions && ev.competitions[0];
+      if (!c || !c.status || !c.status.type || !c.status.type.completed) continue;
+      const slug = ev.league && ev.league.slug;
+      if (slug === 'club.friendly' || slug === 'nonfifa') continue;
+      const me = c.competitors.find((x) => String((x.team && x.team.id) || x.id) === String(teamId));
+      const op = c.competitors.find((x) => x !== me);
+      if (!me || !op) continue;
+      const sc = (x) => (x.score && typeof x.score === 'object' ? num(x.score.value) : num(x.score));
+      const gf = sc(me);
+      const ga = sc(op);
+      if (!isFinite(gf) || !isFinite(ga)) continue;
+      const lname = (ev.league && ev.league.name) || '';
+      out.push({
+        id: String(ev.id),
+        date: new Date(ev.date),
+        isHome: me.homeAway === 'home',
+        neutral: !!c.neutralSite,
+        gf, ga,
+        opponent: (op.team && op.team.displayName) || '?',
+        oppLogo: logoOf(op.team),
+        competition: lname,
+        w: !ctx.leagueName || !lname || lname === ctx.leagueName ? 1 : 0.75
+      });
+    }
+    return out;
+  };
+
+  /** Jusqu'à 20 matchs récents d'une équipe (saison en cours puis précédente). */
+  D.history = async function (teamId, ctx) {
+    const base = ESPN + '/all/teams/' + encodeURIComponent(teamId) + '/schedule';
+    const cur = await D.get(base, 1800);
+    let games = D.parseSchedule(cur, teamId, ctx);
+    const year = cur && cur.season && cur.season.year;
+    if (games.length < 20 && year) {
+      try {
+        const prev = await D.get(base + '?season=' + (year - 1), 86400);
+        games = games.concat(D.parseSchedule(prev, teamId, ctx));
+      } catch (e) {
+        // saison précédente indisponible : on garde la saison en cours
+      }
+    }
+    games.sort((a, b) => b.date - a.date);
+    return games;
+  };
+
+  /** Fusionne deux listes de matchs (sans doublons), du plus récent au plus ancien. */
+  const mergeGames = (a, b, before) => {
+    const seen = new Set();
+    const out = [];
+    for (const g of a.concat(b)) {
+      if (!g || !(g.date < before)) continue;
+      const key = g.date.toISOString().slice(0, 10) + '|' + g.gf + '-' + g.ga;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(g);
+    }
+    out.sort((x, y) => y.date - x.date);
+    return out;
+  };
+
   D.match = async function (eventId) {
     const j = await D.get(ESPN + '/all/summary?event=' + encodeURIComponent(eventId), 300);
-    return D.parseSummary(j, eventId);
+    const m = D.parseSummary(j, eventId);
+    const ctx = { leagueName: m.league.name };
+    const before = m.completed ? m.date : new Date(Date.now() + 864e5);
+    const [hh, ah] = await Promise.all([
+      D.history(m.home.id, ctx).catch(() => []),
+      D.history(m.away.id, ctx).catch(() => [])
+    ]);
+    m.home.recent = mergeGames(m.home.games, hh, m.completed ? m.date : before);
+    m.away.recent = mergeGames(m.away.games, ah, m.completed ? m.date : before);
+    return m;
   };
 
   /** Entrée du moteur à partir des données d'un match. */
@@ -313,8 +391,8 @@
     return {
       neutral: m.neutral,
       names: { home: m.home.short || m.home.name, away: m.away.short || m.away.name },
-      home: { matches: m.home.games },
-      away: { matches: m.away.games },
+      home: { matches: m.home.recent && m.home.recent.length ? m.home.recent : m.home.games },
+      away: { matches: m.away.recent && m.away.recent.length ? m.away.recent : m.away.games },
       h2h: m.h2h,
       odds
     };
