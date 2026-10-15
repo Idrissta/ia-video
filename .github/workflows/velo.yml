@@ -4,7 +4,15 @@ on:
   push:
     branches: ["**"]
     tags: ["v*"]
+    paths: &velo-paths
+      - "velo/**"
+      - "tools/test-velo.js"
+      - ".github/workflows/velo.yml"
+      - "settings.gradle.kts"
+      - "build.gradle.kts"
+      - "gradle/**"
   pull_request:
+    paths: *velo-paths
   workflow_dispatch:
 
 permissions:

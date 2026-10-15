@@ -1,0 +1,31 @@
+name: APK Prono
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - "prono/**"
+      - "tools/prono-*.js"
+      - "tools/test-prono.js"
+      - ".github/workflows/prono.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: prono-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sources:
+    name: Sonde des sources de données
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Sources de données (ESPN, football-data…)
+        run: node tools/prono-probe.js
