@@ -25,17 +25,17 @@
    * moyenne des matchs récents des deux équipes ; h1 : part en 1re mi-temps.
    */
   S.SPECS = {
-    corners: { name: 'Corners', home: 5.35, away: 4.45, prior: 4, decay: 0.95, window: 10, k: 12, refPrior: 10, h1: 0.47, lines: [7.5, 8.5, 9.5, 10.5, 11.5, 12.5], teamLines: [2.5, 3.5, 4.5, 5.5, 6.5] },
-    yellow: { name: 'Cartons jaunes', home: 1.85, away: 2.15, prior: 6, decay: 0.95, window: 10, k: 8, refPrior: 10, h1: 0.4, lines: [2.5, 3.5, 4.5, 5.5, 6.5], teamLines: [0.5, 1.5, 2.5, 3.5] },
-    red: { name: 'Cartons rouges', home: 0.065, away: 0.085, prior: 30, decay: 0.95, window: 10, k: 50, refPrior: 40, h1: 0.3, lines: [], teamLines: [] },
-    shotsOn: { name: 'Tirs cadrés', home: 4.8, away: 4.0, prior: 4, decay: 0.95, window: 10, k: 12, refPrior: 10, h1: 0.46, lines: [6.5, 7.5, 8.5, 9.5, 10.5], teamLines: [2.5, 3.5, 4.5, 5.5] },
-    shots: { name: 'Tirs', home: 13.6, away: 11.3, prior: 4, decay: 0.95, window: 10, k: 20, refPrior: 10, h1: 0.46, lines: [20.5, 22.5, 24.5, 26.5, 28.5], teamLines: [9.5, 11.5, 13.5, 15.5] },
-    fouls: { name: 'Fautes', home: 11.4, away: 11.9, prior: 4, decay: 0.95, window: 10, k: 25, refPrior: 10, h1: 0.48, lines: [19.5, 21.5, 23.5, 25.5, 27.5], teamLines: [9.5, 10.5, 11.5, 12.5, 13.5] },
-    offsides: { name: 'Hors-jeu', home: 1.9, away: 1.8, prior: 6, decay: 0.95, window: 10, k: 6, refPrior: 10, h1: 0.5, lines: [2.5, 3.5, 4.5, 5.5], teamLines: [0.5, 1.5, 2.5] },
-    saves: { name: 'Arrêts du gardien', home: 2.9, away: 3.4, prior: 6, decay: 0.95, window: 10, k: 15, refPrior: 10, h1: 0.47, lines: [4.5, 5.5, 6.5, 7.5], teamLines: [1.5, 2.5, 3.5, 4.5] }
+    corners: { name: 'Corners', home: 5.4, away: 4.6, prior: 8, decay: 0.95, window: 10, k: 12, refPrior: 60, h1: 0.47, lines: [7.5, 8.5, 9.5, 10.5, 11.5, 12.5], teamLines: [2.5, 3.5, 4.5, 5.5, 6.5] },
+    yellow: { name: 'Cartons jaunes', home: 1.8, away: 2.05, prior: 16, decay: 0.95, window: 10, k: 1e6, refPrior: 60, h1: 0.38, lines: [2.5, 3.5, 4.5, 5.5, 6.5], teamLines: [0.5, 1.5, 2.5, 3.5] },
+    red: { name: 'Cartons rouges', home: 0.095, away: 0.11, prior: 200, decay: 0.95, window: 10, k: 8, refPrior: 60, h1: 0.3, lines: [], teamLines: [] },
+    shotsOn: { name: 'Tirs cadrés', home: 4.9, away: 4.1, prior: 8, decay: 0.95, window: 10, k: 20, refPrior: 60, h1: 0.46, lines: [6.5, 7.5, 8.5, 9.5, 10.5], teamLines: [2.5, 3.5, 4.5, 5.5] },
+    shots: { name: 'Tirs', home: 13.9, away: 11.8, prior: 4, decay: 0.95, window: 10, k: 20, refPrior: 60, h1: 0.46, lines: [20.5, 22.5, 24.5, 26.5, 28.5], teamLines: [9.5, 11.5, 13.5, 15.5] },
+    fouls: { name: 'Fautes', home: 11.6, away: 11.9, prior: 8, decay: 0.9, window: 10, k: 1e6, refPrior: 60, h1: 0.48, lines: [19.5, 21.5, 23.5, 25.5, 27.5], teamLines: [9.5, 10.5, 11.5, 12.5, 13.5] },
+    offsides: { name: 'Hors-jeu', home: 1.85, away: 1.95, prior: 8, decay: 0.95, window: 10, k: 8, refPrior: 60, h1: 0.5, lines: [2.5, 3.5, 4.5, 5.5], teamLines: [0.5, 1.5, 2.5] },
+    saves: { name: 'Arrêts du gardien', home: 2.9, away: 3.4, prior: 16, decay: 0.95, window: 10, k: 12, refPrior: 60, h1: 0.47, lines: [4.5, 5.5, 6.5, 7.5], teamLines: [1.5, 2.5, 3.5, 4.5] }
   };
-  /** Penalty : probabilité de base qu'un penalty soit accordé dans un match. */
-  S.PENALTY = { base: 0.27, prior: 25, scored: 0.78 };
+  /** Penalty : un penalty est accordé dans 25 % des matchs (ESPN), 79 % sont marqués. */
+  S.PENALTY = { base: 0.25, prior: 25, scored: 0.79 };
 
   const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
   const fx = (v) => String(v).replace('.', ',');
@@ -247,7 +247,7 @@
    * Tous les marchés statistiques d'un match.
    * teams : { home: { corners: hist, yellow: hist, … , pen: hist }, away: {…} }
    */
-  S.analyze = function (teams, names, neutral) {
+  S.analyze = function (teams, names, neutral, opts) {
     const out = { markets: [], expected: {} };
     const th = (teams && teams.home) || {};
     const ta = (teams && teams.away) || {};
@@ -258,16 +258,99 @@
       const lam = S.lambdas(hh, ha, spec, neutral);
       out.expected[id] = lam;
       if (id === 'red') continue;
-      if (lam.n === 0 && !(hh.length || ha.length) && !S.ALWAYS[id]) continue;
-      out.markets.push.apply(out.markets, S.markets(id, lam, spec, names));
+      if (!(hh.length || ha.length) && !S.ALWAYS[id]) continue;
+      const mk = S.markets(id, lam, spec, names);
+      if (!(hh.length || ha.length)) for (const m of mk) m.info = 'Moyenne générale (pas de statistiques récentes pour ces équipes)';
+      out.markets.push.apply(out.markets, mk);
     }
     const pen = S.penalty(th.pen, ta.pen);
     out.expected.pen = pen;
     out.markets.push.apply(out.markets, S.eventMarkets(out.expected.red, pen, names));
+    if (opts && opts.scorers) out.markets.push.apply(out.markets, S.scorerMarkets(opts.scorers, opts.lh, opts.la, names));
     return out;
   };
+
+  /**
+   * Buteurs : part des buts de l'équipe marqués par chaque joueur sur ses derniers
+   * matchs (avec retour vers zéro), appliquée aux buts attendus de l'équipe.
+   * Hypothèse : le joueur est sur le terrain comme lors des derniers matchs.
+   */
+  S.scorerMarkets = function (sc, lh, la, names) {
+    const M = [];
+    const one = (block, lam, team, side) => {
+      if (!block || !block.list || !block.list.length || !(lam > 0)) return;
+      const tot = Math.max(1, block.teamGoals);
+      const shrink = 2;
+      const sels = block.list.slice(0, 8).map((pl) => {
+        const share = pl.goals / (tot + shrink);
+        const p = 1 - Math.exp(-lam * share);
+        return sel('SC' + pl.id, pl.name + ' (' + pl.goals + ' but' + (pl.goals > 1 ? 's' : '') + ' en ' + block.matches + ' matchs)', p);
+      });
+      M.push({ id: 'scorer' + side, group: 'Buteurs', name: 'Buteur · ' + team, sels, stat: 'scorer', data: block.matches, info: 'Marque au moins un but (contre son camp exclu), s’il joue comme lors des derniers matchs' });
+    };
+    one(sc.home, lh, names.home, 1);
+    one(sc.away, la, names.away, 2);
+    return M;
+  };
+
   /** Statistiques proposées même sans historique (moyennes générales). */
   S.ALWAYS = { corners: true, yellow: true };
+
+  const KEY = /^(corners|yellow|red|shotsOn|shots|fouls|offsides|saves|pen)(.*)$/;
+  S.isKey = (key) => KEY.test(key) || /^SC\d+$/.test(key);
+
+  /**
+   * Règlement d'un pari statistique. r.stats = { corners: [dom, ext], yellow: […], … },
+   * r.statsH1 = { yellow: […] } (si connu), r.pens = { h, a, scored } (hors tirs au but).
+   * Renvoie null si la donnée manque.
+   */
+  S.settle = function (key, r) {
+    if (/^SC\d+$/.test(key)) {
+      if (!Array.isArray(r.goals) || r.goals.length !== r.hg + r.ag || r.goals.some((g) => !g.scorer && g.type !== 'OG')) return null;
+      const id = key.slice(2);
+      return r.goals.some((g) => g.type !== 'OG' && g.scorer === id) ? 'won' : 'lost';
+    }
+    const mm = KEY.exec(key);
+    if (!mm) return null;
+    const id = mm[1];
+    const rest = mm[2];
+    const ok = (c) => (c ? 'won' : 'lost');
+    if (id === 'pen') {
+      const p = r.pens;
+      if (!p || !isFinite(p.h) || !isFinite(p.a)) return null;
+      if (rest === 'Y' || rest === 'N') return ok((p.h + p.a > 0) === (rest === 'Y'));
+      if (rest === '1Y') return ok(p.h > 0);
+      if (rest === '2Y') return ok(p.a > 0);
+      if ((rest === 'SY' || rest === 'SN') && isFinite(p.scored)) return ok((p.scored > 0) === (rest === 'SY'));
+      return null;
+    }
+    const v = r.stats && r.stats[id];
+    if (!v || !isFinite(v[0]) || !isFinite(v[1])) return null;
+    const [x, y] = v;
+    let m;
+    if (id === 'red') {
+      if (rest === 'Y' || rest === 'N') return ok((x + y > 0) === (rest === 'Y'));
+      if (rest === '1Y') return ok(x > 0);
+      if (rest === '2Y') return ok(y > 0);
+      return null;
+    }
+    if ((m = /^([OU])([\d.]+)$/.exec(rest))) return ok(m[1] === 'O' ? x + y > +m[2] : x + y < +m[2]);
+    if ((m = /^([12])([OU])([\d.]+)$/.exec(rest))) {
+      const g = m[1] === '1' ? x : y;
+      return ok(m[2] === 'O' ? g > +m[3] : g < +m[3]);
+    }
+    if (rest === 'W1') return ok(x > y);
+    if (rest === 'WX') return ok(x === y);
+    if (rest === 'W2') return ok(x < y);
+    if ((m = /^H([12])([+-][\d.]+)$/.exec(rest))) return ok((m[1] === '1' ? x - y : y - x) + +m[2] > 0);
+    if ((m = /^H([OU])([\d.]+)$/.exec(rest))) {
+      const h1 = r.statsH1 && r.statsH1[id];
+      if (!h1 || !isFinite(h1[0]) || !isFinite(h1[1])) return null;
+      return ok(m[1] === 'O' ? h1[0] + h1[1] > +m[2] : h1[0] + h1[1] < +m[2]);
+    }
+    if (rest === 'BY' || rest === 'BN') return ok((x > 0 && y > 0) === (rest === 'BY'));
+    return null;
+  };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = P;
 })(typeof window !== 'undefined' ? window : globalThis);

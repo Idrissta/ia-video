@@ -136,7 +136,8 @@ public class MainActivity extends Activity {
             return;
         }
         web.evaluateJavascript("window.pronoBack?pronoBack():false", result -> {
-            if (!"true".equals(result)) finish();
+            // Écran principal : l'application passe en arrière-plan (comme le bouton d'accueil).
+            if (!"true".equals(result)) moveTaskToBack(true);
         });
     }
 
@@ -207,26 +208,45 @@ public class MainActivity extends Activity {
         return new WebResourceResponse("text/plain", "utf-8", code, reason, null, new ByteArrayInputStream(new byte[0]));
     }
 
-    /** Appel réseau réel pour /net/?u=<url>, limité aux serveurs de données autorisés. */
+    private static boolean allowed(Uri u) {
+        return u != null && "https".equals(u.getScheme()) && u.getHost() != null && API_HOSTS.contains(u.getHost());
+    }
+
+    /**
+     * Appel réseau réel pour /net/?u=<url>, limité aux serveurs de données autorisés
+     * (redirections suivies à la main et vérifiées elles aussi).
+     */
     private WebResourceResponse relay(Uri request) {
         String target = request.getQueryParameter("u");
         if (target == null) return error(400, "Bad Request");
-        Uri t = Uri.parse(target);
-        if (!"https".equals(t.getScheme()) || t.getHost() == null || !API_HOSTS.contains(t.getHost())) return error(403, "Forbidden");
+        if (!allowed(Uri.parse(target))) return error(403, "Forbidden");
         HttpURLConnection c = null;
         try {
-            c = (HttpURLConnection) new URL(target).openConnection();
-            c.setConnectTimeout(15000);
-            c.setReadTimeout(30000);
-            c.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android " + Build.VERSION.RELEASE + ") PronoFoot/" + BuildConfig.VERSION_NAME);
-            c.setRequestProperty("Accept", "application/json");
-            int code = c.getResponseCode();
-            InputStream in = code >= 400 ? c.getErrorStream() : c.getInputStream();
-            if (in == null) in = new ByteArrayInputStream(new byte[0]);
-            Map<String, String> headers = new HashMap<>();
-            headers.put("Cache-Control", "no-store");
-            String reason = c.getResponseMessage();
-            return new WebResourceResponse("application/json", "utf-8", code, reason == null || reason.isEmpty() ? "OK" : reason, headers, in);
+            URL url = new URL(target);
+            for (int hop = 0; hop < 5; hop++) {
+                c = (HttpURLConnection) url.openConnection();
+                c.setInstanceFollowRedirects(false);
+                c.setConnectTimeout(15000);
+                c.setReadTimeout(30000);
+                c.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android " + Build.VERSION.RELEASE + ") PronoFoot/" + BuildConfig.VERSION_NAME);
+                c.setRequestProperty("Accept", "application/json");
+                int code = c.getResponseCode();
+                if (code >= 300 && code < 400) {
+                    String loc = c.getHeaderField("Location");
+                    c.disconnect();
+                    if (loc == null) return error(502, "Bad Gateway");
+                    url = new URL(url, loc);
+                    if (!allowed(Uri.parse(url.toString()))) return error(403, "Forbidden");
+                    continue;
+                }
+                InputStream in = code >= 400 ? c.getErrorStream() : c.getInputStream();
+                if (in == null) in = new ByteArrayInputStream(new byte[0]);
+                Map<String, String> headers = new HashMap<>();
+                headers.put("Cache-Control", "no-store");
+                String reason = c.getResponseMessage();
+                return new WebResourceResponse("application/json", "utf-8", code, reason == null || reason.isEmpty() ? "OK" : reason, headers, in);
+            }
+            return error(502, "Bad Gateway");
         } catch (IOException | RuntimeException e) {
             if (c != null) c.disconnect();
             return error(502, "Bad Gateway");

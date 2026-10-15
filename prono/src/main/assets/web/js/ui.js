@@ -11,6 +11,9 @@
   const odd = (o) => (o == null || !isFinite(o) ? '—' : o >= 100 ? '99+' : o.toFixed(2).replace('.', ','));
   const dec = (v, n) => (v == null || !isFinite(v) ? '—' : v.toFixed(n == null ? 2 : n).replace('.', ','));
   const native = () => root.PronoNative;
+  /** Libellé complet d'un pari : marché + sélection (« Total individuel 2 · Lille : Moins de 1,5 »). */
+  const full = (p) => (p.market ? p.market + ' : ' : '') + p.label;
+  const norm = (t) => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[’']/g, ' ');
   const LS = {
     get(k, d) {
       try {
@@ -55,6 +58,8 @@
     events: [],
     cur: null,
     matchTab: 'prono',
+    mkFilter: 'all',
+    mkQuery: '',
     settings: Object.assign({ blend: true, women: false }, LS.get('settings', {})),
 
     init() {
@@ -257,7 +262,7 @@
 
     async openMatch(id, ev, force) {
       this.matchTab = 'prono';
-      this.cur = { m: null, res: null, title: ev ? ev.home.short + ' – ' + ev.away.short : 'Analyse' };
+      this.cur = { m: null, res: null, loading: id, title: ev ? ev.home.short + ' – ' + ev.away.short : 'Analyse' };
       this.show('match');
       const box = $('match');
       box.innerHTML = (ev ? this.headerHtml(ev) : '') + '<div class="spinner"></div><p class="sub" style="text-align:center">Analyse des derniers matchs et des confrontations…</p>';
@@ -265,7 +270,7 @@
       try {
         if (force) D.clearCache && D.clearCache();
         const m = await D.match(id);
-        if (!this.cur || (this.cur.m && this.cur.m.id !== id)) return;
+        if (!this.cur || this.cur.loading !== id || this.screen !== 'match') return;
         this.setMatch(m);
       } catch (e) {
         box.innerHTML = (ev ? this.headerHtml(ev) : '') + '<div class="empty"><b>Analyse impossible</b>' + esc(e.message || 'Erreur réseau') + '<br><br><button class="btn small" id="retry-m">' + icon('refresh') + 'Réessayer</button></div>';
@@ -276,8 +281,10 @@
     setMatch(m) {
       this.cur = { m, res: null, title: (m.home.short || m.home.name) + ' – ' + (m.away.short || m.away.name) };
       this.cur.userOdds = LS.get('odds-' + m.id, {});
+      this.cur.statsState = m.manual ? 'none' : 'loading';
       this.compute();
       this.renderMatch();
+      if (!m.manual) this.loadStats();
       this.updateChrome();
     },
 
@@ -286,6 +293,54 @@
       const ref = this.settings.blend && c.m.odds ? c.m.odds : {};
       c.input = D.engineInput(c.m, ref, c.userOdds);
       c.res = E.analyze(c.input);
+      if (P.Stats) {
+        // Corners, cartons, penalty… : moyennes générales tant que les statistiques
+        // des derniers matchs ne sont pas chargées.
+        const st = c.stats || { teams: { home: {}, away: {} }, scorers: null };
+        c.statsRes = P.Stats.analyze(st.teams, c.input.names, c.m.neutral, { lh: c.res.lh, la: c.res.la, scorers: st.scorers });
+        c.res.markets = c.res.markets.concat(c.statsRes.markets);
+        E.applyOdds(c.res, c.userOdds);
+      }
+    },
+
+    /** Charge en arrière-plan les statistiques des derniers matchs (corners, cartons, buteurs…). */
+    async loadStats() {
+      const c = this.cur;
+      if (!c || !c.m || c.m.manual || !D.stats || !P.Stats) return;
+      c.statsState = 'loading';
+      try {
+        const st = await D.stats(c.m);
+        if (this.cur !== c) return;
+        c.stats = st;
+        c.statsState = st && (st.n.home || st.n.away) ? 'ok' : 'none';
+      } catch (e) {
+        if (this.cur !== c) return;
+        c.statsState = 'error';
+      }
+      this.compute();
+      if (this.screen === 'match') {
+        const sc = $('scr-match');
+        const y = sc ? sc.scrollTop : 0;
+        const active = document.activeElement;
+        if (active && active.closest && active.closest('#mt-body') && active.tagName === 'INPUT') return this.updateStatsNote();
+        this.renderMatchTab();
+        if (sc) sc.scrollTop = y;
+      }
+    },
+
+    updateStatsNote() {
+      const n = $('stats-note');
+      if (n) n.innerHTML = this.statsNote();
+    },
+
+    statsNote() {
+      const c = this.cur;
+      const st = c.statsState;
+      if (!P.Stats || (c.m && c.m.manual)) return 'Corners, cartons et penalty : moyennes générales (analyse manuelle).';
+      if (st === 'loading') return '<span class="spin-s"></span> Chargement des statistiques des derniers matchs (corners, cartons, tirs, buteurs)…';
+      if (st === 'ok') return 'Corners, cartons, tirs, penalty et buteurs : ' + c.stats.n.home + ' et ' + c.stats.n.away + ' derniers matchs analysés.';
+      if (st === 'error') return 'Statistiques indisponibles pour le moment : corners, cartons et penalty selon les moyennes générales.';
+      return 'Pas de statistiques détaillées pour cette compétition : corners, cartons et penalty selon les moyennes générales.';
     },
 
     headerHtml(m) {
@@ -344,6 +399,15 @@
       }
       html.push('<div class="card"><h3>Autres pronostics</h3><div class="plist">' + r.picks.list.slice(1).map((pk) =>
         '<div class="it"><div class="grow"><div class="lb">' + esc(pk.label) + '</div><div class="mk">' + esc(pk.market) + ' · cote juste ' + odd(pk.fair) + '</div><div class="bar" style="margin-top:6px"><i style="width:' + Math.round(pk.p * 100) + '%"></i></div></div><div class="pv">' + pct(pk.p) + '</div></div>').join('') + '</div></div>');
+      {
+        const csm = r.markets.find((x) => x.id === 'cs');
+        const top = csm ? csm.sels.filter((x) => x.key !== 'CSO').slice(0, 6) : [];
+        html.push('<div class="card"><h3>Score exact</h3><div class="scores">' + top.map((x, i) => '<div class="scx' + (i === 0 ? ' top' : '') + '"><b>' + esc(x.label) + '</b><span>' + pct(x.p) + '</span></div>').join('') +
+          '</div><button class="link" data-goto="Score exact">Tous les scores exacts' + icon('down') + '</button></div>');
+      }
+      html.push('<div class="card"><h3>Pronostics par catégorie</h3><p class="sub stats-note" id="stats-note">' + this.statsNote() + '</p><div class="plist">' + this.categoryPicks().map((cp) =>
+        '<button class="it" data-goto="' + esc(cp.group) + '"><div class="grow"><div class="mk">' + esc(cp.cat) + '</div><div class="lb">' + esc(cp.label) + '</div><div class="bar" style="margin-top:6px"><i style="width:' + Math.round(cp.p * 100) + '%"></i></div></div><div class="pv">' + pct(cp.p) + '</div></button>').join('') +
+        '</div><p class="sub" style="margin:8px 0 0">Touchez une catégorie pour voir tous ses paris.</p></div>');
       if (r.picks.values.length) {
         html.push('<div class="card"><h3>Value bets avec tes cotes</h3><div class="plist">' + r.picks.values.map((v) =>
           '<div class="it"><div class="grow"><div class="lb">' + esc(v.label) + '</div><div class="mk">' + esc(v.market) + ' · ta cote ' + odd(v.odd) + ' / juste ' + odd(v.fair) + '</div></div><div class="pv ev pos">+' + Math.round(v.ev * 100) + ' %</div></div>').join('') +
@@ -381,20 +445,88 @@
       return html.join('');
     },
 
+    /** Le pari le plus intéressant de chaque grande catégorie. */
+    categoryPicks() {
+      const r = this.cur.res;
+      const names = this.cur.input.names;
+      const cats = [
+        ['Buts', ['total'], 'Buts'], ['Les deux équipes marquent', ['btts'], 'Principaux'], ['Double chance', ['dc'], 'Principaux'],
+        ['Buts de ' + names.home, ['it1'], 'Buts'], ['Buts de ' + names.away, ['it2'], 'Buts'],
+        ['1re mi-temps', ['httotal', 'ht1x2', 'htdc'], 'Mi-temps'], ['Minutes', ['gb15', 'gb10', 'gb5', 'goalint', 'late', 'res15'], 'Minutes'],
+        ['Corners', ['corners:total', 'corners:1x2'], 'Corners'], ['Cartons jaunes', ['yellow:total', 'yellow:1x2'], 'Cartons jaunes'],
+        ['Carton rouge', ['red'], 'Cartons rouges'], ['Penalty', ['pen'], 'Penalty'], ['Tirs cadrés', ['shotsOn:total', 'shotsOn:1x2'], 'Tirs cadrés'],
+        ['Fautes', ['fouls:total'], 'Fautes'], ['Hors-jeu', ['offsides:total'], 'Hors-jeu'], ['Arrêts du gardien', ['saves:total'], 'Arrêts du gardien'],
+        ['Buteur', ['scorer1', 'scorer2'], 'Buteurs']
+      ];
+      const out = [];
+      for (const [cat, ids, group] of cats) {
+        let best = null;
+        let top = null;
+        for (const mk of r.markets) {
+          if (ids.indexOf(mk.id) < 0) continue;
+          for (const x of mk.sels) {
+            if (!top || x.p > top.s.p) top = { s: x, mk };
+            if (x.p < 0.55) continue;
+            const fair = x.fair || 1 / x.p;
+            const score = x.p * (fair < 1.18 ? 0.55 : fair < 1.3 ? 0.85 : 1);
+            if (!best || score > best.score) best = { s: x, mk, score };
+          }
+        }
+        const pick = best || top;
+        if (!pick) continue;
+        const name = pick.mk.name.replace(/^(Corners|Cartons jaunes|Tirs cadrés|Fautes|Hors-jeu|Arrêts du gardien) · /, '');
+        out.push({ cat, group, label: (name === 'Total' || /^Total/.test(name) ? '' : name + ' : ') + pick.s.label, p: pick.s.p });
+      }
+      return out;
+    },
+
     marketsHtml() {
       const c = this.cur;
       const showOdds = LS.get('showOdds', true);
+      const groups = this.marketGroups();
+      if (this.mkFilter !== 'all' && !groups.some((g) => g.name === this.mkFilter)) this.mkFilter = 'all';
+      const n = c.res.markets.reduce((a, mk) => a + mk.sels.length, 0);
+      return '<div class="card"><div class="odds-toggle"><button class="switch' + (showOdds ? ' on' : '') + '" id="sw-odds" aria-label="Saisir mes cotes"></button><div class="grow"><b>Saisir mes cotes (1xBet…)</b><div class="sub">Compare chaque cote à la cote juste et repère la value.</div></div></div>' +
+        '<p class="notice" style="margin:0">' + c.res.markets.length + ' marchés, ' + n + ' paris. Probabilité estimée · cote juste (= 1 / probabilité) · ta cote. Une cote supérieure à la cote juste est une value.</p></div>' +
+        '<div class="search mk-search">' + icon('search') + '<input id="mk-q" type="search" placeholder="Chercher : penalty, corners, 15 minutes, 2-1…" value="' + esc(this.mkQuery || '') + '" autocomplete="off"></div>' +
+        '<div class="dates mk-chips"><button class="chip' + (this.mkFilter === 'all' ? ' on' : '') + '" data-mf="all">Tous</button>' +
+        groups.map((g) => '<button class="chip' + (this.mkFilter === g.name ? ' on' : '') + '" data-mf="' + esc(g.name) + '">' + esc(g.name) + '</button>').join('') + '</div>' +
+        '<p class="sub stats-note" id="stats-note">' + this.statsNote() + '</p>' +
+        '<div id="mk-list">' + this.marketListHtml() + '</div>';
+    },
+
+    marketGroups() {
       const groups = [];
-      for (const mk of c.res.markets) {
+      for (const mk of this.cur.res.markets) {
         let g = groups.find((x) => x.name === mk.group);
         if (!g) groups.push(g = { name: mk.group, items: [] });
         g.items.push(mk);
       }
+      return groups;
+    },
+
+    marketListHtml() {
+      const c = this.cur;
+      const showOdds = LS.get('showOdds', true);
+      const q = norm(this.mkQuery || '');
+      let groups = this.marketGroups();
+      if (this.mkFilter && this.mkFilter !== 'all') groups = groups.filter((g) => g.name === this.mkFilter);
+      if (q) {
+        const words = q.split(/\s+/).filter(Boolean);
+        groups = groups.map((g) => ({
+          name: g.name,
+          items: g.items.filter((mk) => {
+            const text = norm(g.name + ' ' + mk.name + ' ' + (mk.info || '') + ' ' + mk.sels.map((x) => x.label).join(' '));
+            return words.every((w) => text.indexOf(w) >= 0);
+          })
+        })).filter((g) => g.items.length);
+        if (!groups.length) return '<div class="card empty"><b>Aucun pari trouvé</b>Essaie un autre mot : « buts », « mi-temps », « corners », « cartons », « penalty », « minutes », « score »…</div>';
+      }
       const open = LS.get('openGroups', { Principaux: true, Buts: true });
-      const html = ['<div class="card"><div class="odds-toggle"><button class="switch' + (showOdds ? ' on' : '') + '" id="sw-odds" aria-label="Saisir mes cotes"></button><div class="grow"><b>Saisir mes cotes (1xBet…)</b><div class="sub">Compare chaque cote à la cote juste et repère la value.</div></div></div>' +
-        '<p class="notice" style="margin:0">Probabilité estimée · cote juste (= 1 / probabilité) · ta cote. Une cote supérieure à la cote juste est une value.</p></div>'];
+      const forceOpen = !!q || (this.mkFilter && this.mkFilter !== 'all');
+      const html = [];
       for (const g of groups) {
-        html.push('<div class="mk-group' + (open[g.name] ? ' open' : '') + '" data-g="' + esc(g.name) + '"><button>' + esc(g.name) + ' <span class="sub">(' + g.items.length + ')</span>' + icon('down') + '</button><div class="body">');
+        html.push('<div class="mk-group' + (forceOpen || open[g.name] ? ' open' : '') + '" data-g="' + esc(g.name) + '"><button>' + esc(g.name) + ' <span class="sub">(' + g.items.length + ')</span>' + icon('down') + '</button><div class="body">');
         for (const mk of g.items) {
           const best = mk.sels.reduce((a, s) => (s.p > a.p ? s : a), mk.sels[0]);
           html.push('<div class="mkt"><h4>' + esc(mk.name) + '</h4>' + (mk.info ? '<div class="info">' + esc(mk.info) + '</div>' : ''));
@@ -481,6 +613,36 @@
         LS.set('showOdds', !LS.get('showOdds', true));
         this.renderMatchTab();
       });
+      const q = $('mk-q');
+      if (q) q.addEventListener('input', () => {
+        this.mkQuery = q.value;
+        this.refreshMarketList();
+      });
+      body.querySelectorAll('[data-mf]').forEach((b) => b.addEventListener('click', () => {
+        this.mkFilter = b.dataset.mf;
+        body.querySelectorAll('[data-mf]').forEach((x) => x.classList.toggle('on', x === b));
+        this.refreshMarketList();
+      }));
+      body.querySelectorAll('[data-goto]').forEach((b) => b.addEventListener('click', () => {
+        this.mkFilter = b.dataset.goto;
+        this.mkQuery = '';
+        this.matchTab = 'markets';
+        $('match').querySelectorAll('[data-mt]').forEach((x) => x.classList.toggle('on', x.dataset.mt === 'markets'));
+        this.renderMatchTab();
+      }));
+      this.bindMarketList();
+    },
+
+    refreshMarketList() {
+      const list = $('mk-list');
+      if (!list) return;
+      list.innerHTML = this.marketListHtml();
+      this.bindMarketList();
+    },
+
+    bindMarketList() {
+      const body = $('mk-list');
+      if (!body) return;
       body.querySelectorAll('.mk-group > button').forEach((b) => b.addEventListener('click', () => {
         const g = b.parentElement;
         g.classList.toggle('open');
@@ -514,10 +676,12 @@
       const r = c.res;
       const b = E.basic(r.ft);
       const lines = ['⚽ ' + c.m.home.name + ' – ' + c.m.away.name, (c.m.league.name || '') + (c.m.manual ? '' : ' · ' + fmtDate(c.m.date) + ' ' + fmtTime(c.m.date))];
-      if (r.picks.main) lines.push('✅ Pronostic : ' + r.picks.main.label + ' (' + pct(r.picks.main.p) + ')');
+      if (r.picks.main) lines.push('✅ Pronostic : ' + full(r.picks.main) + ' (' + pct(r.picks.main.p) + ')');
       lines.push('1X2 : ' + pct(b.h) + ' / ' + pct(b.d) + ' / ' + pct(b.a));
       lines.push('Plus de 2,5 : ' + pct(b.o25) + ' · Les deux marquent : ' + pct(b.btts));
-      for (const pk of r.picks.list.slice(1, 4)) lines.push('• ' + pk.label + ' (' + pct(pk.p) + ')');
+      for (const pk of r.picks.list.slice(1, 4)) lines.push('• ' + full(pk) + ' (' + pct(pk.p) + ')');
+      const csm = r.markets.find((x) => x.id === 'cs');
+      if (csm) lines.push('🎯 Score exact probable : ' + csm.sels.slice(0, 3).map((x) => x.label.replace(/ /g, '') + ' (' + pct(x.p) + ')').join(', '));
       lines.push('— PronoFoot');
       return lines.join('\n');
     },
@@ -576,8 +740,8 @@
           const badge = st === 'won' ? '<span class="tag t1">Gagné</span>' : st === 'half-won' ? '<span class="tag t1">½ gagné</span>' : st === 'lost' ? '<span class="tag t3">Perdu</span>' : st === 'half-lost' ? '<span class="tag t3">½ perdu</span>' : st === 'push' ? '<span class="tag info">Remboursé</span>' : it.manual ? '<span class="tag info">Manuel</span>' : '<span class="tag t2">En attente</span>';
           const score = it.result && it.result.completed ? '<b>' + it.result.hg + '-' + it.result.ag + '</b>' : '';
           html.push('<div class="card hitem"><div class="grow"><div class="sub">' + esc(it.league) + ' · ' + new Date(it.date).toLocaleDateString('fr-FR') + '</div><div style="font-weight:800;margin:3px 0">' + esc(it.home) + ' – ' + esc(it.away) + ' ' + score + '</div>' +
-            '<div>' + esc(main.label || '') + ' <span class="sub">(' + pct(main.p) + ')</span></div>' +
-            '<div class="sub" style="margin-top:4px">' + it.picks.slice(1).map((p) => esc(p.label) + (p.status === 'won' ? ' ✓' : p.status === 'lost' ? ' ✗' : '')).join(' · ') + '</div></div>' +
+            '<div>' + esc(main.label ? full(main) : '') + ' <span class="sub">(' + pct(main.p) + ')</span></div>' +
+            '<div class="sub" style="margin-top:4px">' + it.picks.slice(1).map((p) => esc(full(p)) + (p.status === 'won' ? ' ✓' : p.status === 'lost' ? ' ✗' : '')).join(' · ') + '</div></div>' +
             '<div class="st">' + badge + '<br><button class="icon-btn" data-del="' + esc(it.id) + '" aria-label="Supprimer" style="margin-top:6px">' + icon('trash') + '</button></div></div>');
         }
         box.innerHTML = html.join('');
@@ -696,13 +860,15 @@
         '<div class="setting"><div class="grow"><b>Vider le cache</b><span>Recharge toutes les données au prochain affichage.</span></div><button class="btn small" id="btn-clear">Vider</button></div></div>' +
         '<div class="card prose"><h3>Comment sont calculés les pronostics ?</h3>' +
         '<p>Pour chaque match, PronoFoot récupère <b>les 5 derniers matchs de chaque équipe</b> et <b>leurs 5 dernières confrontations directes</b>, complétés par jusqu’à 20 matchs récents pour mieux mesurer la force réelle des équipes.</p>' +
-        '<p>Il en déduit l’attaque et la défense de chaque équipe (en tenant compte du domicile et de l’extérieur), puis le nombre de buts attendus. Une loi de Poisson corrigée (modèle de Dixon-Coles) donne la probabilité de chaque score, d’où sont tirés <b>49 marchés et plus de 300 paris</b> comme chez 1xBet : 1X2, double chance, totaux, handicaps asiatiques, les deux équipes marquent, mi-temps/fin de match, score exact…</p>' +
+        '<p>Il en déduit l’attaque et la défense de chaque équipe (en tenant compte du domicile et de l’extérieur), puis le nombre de buts attendus. Une loi de Poisson corrigée (modèle de Dixon-Coles) donne la probabilité de chaque score, d’où sont tirés <b>plus de 120 marchés et près de 800 paris</b> comme chez 1xBet : 1X2, double chance, totaux, handicaps asiatiques, les deux équipes marquent, mi-temps/fin de match, score exact complet, buts minute par minute (2, 5, 10, 15 premières minutes…), ordre des buts…</p>' +
+        '<p>Les <b>corners, cartons jaunes et rouges, penaltys, tirs, fautes, hors-jeu, arrêts du gardien et buteurs</b> sont calculés à partir des statistiques des 10 derniers matchs de chaque équipe. La répartition des buts minute par minute est mesurée sur des milliers de matchs réels.</p>' +
         '<p>Quand des cotes de référence sont disponibles, elles sont combinées au modèle : c’est ce qui donne les meilleurs résultats.</p></div>' +
         '<div class="card"><h3>Résultats mesurés</h3><p class="sub" style="margin-top:-4px">Test sur 7 943 matchs réels (12 championnats européens, saisons 2024-2025 et 2025-2026), jamais utilisés pour régler le modèle.</p>' +
         '<div class="kv"><span>Pronostic principal gagnant</span><b>78 %</b></div>' +
         '<div class="kv"><span>Bon résultat 1X2 (forme + face-à-face)</span><b>51 %</b></div>' +
         '<div class="kv"><span>Bon résultat 1X2 (avec les cotes)</span><b>53 %</b></div>' +
         '<div class="kv"><span>Probabilité annoncée 83 % → réalisée</span><b>83 %</b></div>' +
+        '<div class="kv"><span>Cartons ±4,5 · fautes ±21,5 (avec les stats)</span><b>63 % · 70 %</b></div>' +
         '<p class="notice" style="margin:10px 0 0">Aucune méthode ne gagne à tous les coups : un pari à 80 % perd en moyenne 1 fois sur 5.</p></div>' +
         '<div class="card prose"><h3>Jeu responsable</h3><p>Les paris sportifs sont réservés aux plus de 18 ans. Ne mise que ce que tu peux te permettre de perdre, fixe-toi des limites et fais des pauses. Si le jeu devient un problème, parles-en et demande de l’aide à un service spécialisé de ton pays.</p></div>' +
         '<div class="card"><div class="kv"><span>Version</span><b>' + esc(version) + '</b></div><div class="kv"><span>Données des matchs</span><b>ESPN</b></div><div class="kv"><span>Données de test</span><b>football-data.co.uk</b></div></div>';

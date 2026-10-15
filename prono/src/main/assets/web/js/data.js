@@ -160,7 +160,7 @@
     const day = new Date(date.getFullYear(), date.getMonth(), date.getDate());
     const offsetMin = -day.getTimezoneOffset();
     const shift = offsetMin > -300 ? -1 : 1;
-    const other = new Date(day.getTime() + shift * 864e5);
+    const other = new Date(day.getFullYear(), day.getMonth(), day.getDate() + shift);
     const ttl = sameDay(day, new Date()) ? 90 : 900;
     const urls = [day, other].map((d) => ESPN + '/all/scoreboard?dates=' + ymd(d) + '&limit=1000');
     if (force) urls.forEach((u) => cache.delete(u));
@@ -224,9 +224,11 @@
       const hs = num(g.homeTeamScore);
       const as = num(g.awayTeamScore);
       if (!isFinite(hs) || !isFinite(as)) return null;
+      if (/friendl|amical/i.test((g.leagueName || '') + ' ' + (g.leagueAbbreviation || ''))) return null;
       const oppId = String(g.opponent && g.opponent.id);
       const sameComp = !ctx.leagueName || !g.leagueName || g.leagueName === ctx.leagueName;
       return {
+        id: g.id != null ? String(g.id) : '',
         date: new Date(g.gameDate),
         isHome,
         gf: isHome ? hs : as,
@@ -242,7 +244,7 @@
   };
 
   /** Confrontations directes, vues depuis l'équipe qui reçoit aujourd'hui. */
-  D.parseH2H = function (series, homeId, now) {
+  D.parseH2H = function (series, homeId, now, before) {
     const list = [];
     const seen = new Set();
     for (const s of series || []) {
@@ -251,8 +253,9 @@
         const comps = ev.competitors || [];
         const me = comps.find((c) => c.team && String(c.team.id) === String(homeId));
         const other = comps.find((c) => c !== me);
-        const done = ev.status === 'post' || (ev.statusType && ev.statusType.completed);
+        const done = ev.statusType ? ev.statusType.completed === true : ev.status === 'post';
         if (!me || !other || !done) continue;
+        if (before && new Date(ev.date).getTime() >= before) continue;
         const hg = num(me.score);
         const ag = num(other.score);
         if (!isFinite(hg) || !isFinite(ag)) continue;
@@ -289,7 +292,8 @@
     const homeGames = D.parseLastGames(blockOf(home.id), home.id, ctxL);
     const awayGames = D.parseLastGames(blockOf(away.id), away.id, ctxL);
     const series = (j.seasonseries || []).filter((s) => !s.type || /head/i.test(s.type) || /head|matchup/i.test(s.shortSummary || s.seriesLabel || ''));
-    const h2h = D.parseH2H(series.length ? series : j.seasonseries, home.id, date.getTime() || Date.now());
+    const kick = date.getTime() || Date.now();
+    const h2h = D.parseH2H(series.length ? series : j.seasonseries, home.id, kick, kick - 3 * 3600e3);
     let odds = null;
     const pc = j.pickcenter && j.pickcenter[0];
     odds = D.parseOdds(pc) || D.parseOdds(j.odds && j.odds[0]);
@@ -386,8 +390,9 @@
       D.history(m.home.id, ctx).catch(() => []),
       D.history(m.away.id, ctx).catch(() => [])
     ]);
-    m.home.recent = mergeGames(m.home.games, hh, m.completed ? m.date : before);
-    m.away.recent = mergeGames(m.away.games, ah, m.completed ? m.date : before);
+    // Le calendrier passe en premier : il connaît les terrains neutres et exclut les amicaux.
+    m.home.recent = mergeGames(hh, m.home.games, m.completed ? m.date : before);
+    m.away.recent = mergeGames(ah, m.away.games, m.completed ? m.date : before);
     return m;
   };
 
@@ -404,7 +409,185 @@
     };
   };
 
-  /** Score final d'un match terminé (pour l'historique des pronostics). */
+  /* --------------------------------------------------------------------- */
+  /* Détails d'un match terminé : statistiques, buts minute par minute,      */
+  /* cartons, penaltys, buteurs (résumé ESPN : boxscore + keyEvents).        */
+  /* --------------------------------------------------------------------- */
+
+  const STAT_MAP = {
+    corners: 'wonCorners', yellow: 'yellowCards', red: 'redCards', shotsOn: 'shotsOnTarget',
+    shots: 'totalShots', fouls: 'foulsCommitted', offsides: 'offsides', saves: 'saves'
+  };
+  D.STAT_MAP = STAT_MAP;
+
+  /** « 45'+2' » → { min: 45, extra: 2 }. */
+  D.minuteOf = function (clock) {
+    const s = String((clock && clock.displayValue) || '');
+    const m = /^(\d+)'?(?:\s*\+\s*(\d+))?/.exec(s);
+    if (m) return { min: +m[1], extra: m[2] ? +m[2] : 0 };
+    if (clock && clock.value > 0) return { min: Math.ceil(clock.value / 60), extra: 0 };
+    return null;
+  };
+
+  D.parseDetail = function (j) {
+    const hc = j && j.header && j.header.competitions && j.header.competitions[0];
+    if (!hc) return null;
+    const hcomp = hc.competitors.find((x) => x.homeAway === 'home') || hc.competitors[0];
+    const acomp = hc.competitors.find((x) => x.homeAway === 'away') || hc.competitors[1];
+    const homeId = String((hcomp.team && hcomp.team.id) || hcomp.id);
+    const awayId = String((acomp.team && acomp.team.id) || acomp.id);
+    const sideOf = (team, fallback) => {
+      const id = team && team.id != null ? String(team.id) : '';
+      return id === homeId ? 'h' : id === awayId ? 'a' : fallback || null;
+    };
+    const st = (hc.status && hc.status.type) || {};
+    const out = {
+      id: String(j.header.id || ''), homeId, awayId, completed: !!st.completed, detail: st.shortDetail || '',
+      hgAll: num(hcomp.score), agAll: num(acomp.score), stats: {}, statsH1: {}, goals: null, pens: null, hasEvents: false
+    };
+    // Statistiques d'équipe.
+    const box = {};
+    for (const t of (j.boxscore && j.boxscore.teams) || []) {
+      const side = sideOf(t.team, t.homeAway === 'home' ? 'h' : t.homeAway === 'away' ? 'a' : null);
+      if (!side) continue;
+      const v = {};
+      for (const x of t.statistics || []) v[x.name] = num(x.displayValue != null ? x.displayValue : x.value);
+      box[side] = v;
+    }
+    if (box.h && box.a) {
+      for (const [id, name] of Object.entries(STAT_MAP)) {
+        if (isFinite(box.h[name]) && isFinite(box.a[name])) out.stats[id] = [box.h[name], box.a[name]];
+      }
+    }
+    // Actions clés : buts, cartons, penaltys (séance de tirs au but exclue).
+    const ke = Array.isArray(j.keyEvents) ? j.keyEvents : [];
+    if (ke.length) {
+      out.hasEvents = true;
+      const goals = [];
+      const pens = { h: 0, a: 0, scored: 0 };
+      const y = { h: 0, a: 0 };
+      const yh1 = { h: 0, a: 0 };
+      const r = { h: 0, a: 0 };
+      for (const e of ke) {
+        if (e.shootout) continue;
+        const ty = String((e.type && (e.type.type || e.type.text)) || '').toLowerCase();
+        const side = sideOf(e.team);
+        const mn = D.minuteOf(e.clock);
+        const period = e.period && e.period.number;
+        if (/penalty/.test(ty) && side) {
+          pens[side]++;
+          if (e.scoringPlay) pens.scored++;
+        }
+        if (/yellow/.test(ty) && side) {
+          y[side]++;
+          if (period === 1) yh1[side]++;
+        }
+        if (/red-card|red card/.test(ty) && side) r[side]++;
+        if (e.scoringPlay && side && mn) {
+          const p0 = e.participants && e.participants[0] && e.participants[0].athlete;
+          goals.push({
+            min: mn.min, extra: mn.extra, period: period || (mn.min > 90 ? 3 : mn.min > 45 ? 2 : 1), side,
+            type: /own/.test(ty) ? 'OG' : /penalty/.test(ty) ? 'PG' : /header/.test(ty) ? 'HD' : /free/.test(ty) ? 'FK' : '',
+            scorer: p0 && p0.id != null ? String(p0.id) : '', name: (p0 && p0.displayName) || ''
+          });
+        }
+      }
+      // Buts cohérents avec le score (contre son camp parfois attribué à l'autre équipe).
+      const count = (gs) => [gs.filter((g) => g.side === 'h').length, gs.filter((g) => g.side === 'a').length];
+      let c = count(goals);
+      if ((c[0] !== out.hgAll || c[1] !== out.agAll) && goals.some((g) => g.type === 'OG')) {
+        for (const g of goals) if (g.type === 'OG') g.side = g.side === 'h' ? 'a' : 'h';
+        c = count(goals);
+      }
+      if (c[0] === out.hgAll && c[1] === out.agAll) out.goals = goals;
+      out.pens = pens;
+      // Cartons : on préfère le boxscore s'il existe, sinon les actions clés.
+      if (!out.stats.yellow) out.stats.yellow = [y.h, y.a];
+      if (!out.stats.red) out.stats.red = [r.h, r.a];
+      out.statsH1.yellow = [yh1.h, yh1.a];
+    }
+    return out;
+  };
+
+  /** Détails d'un match (mis en cache longtemps une fois terminé). */
+  D.detail = async function (eventId) {
+    const j = await D.get(ESPN + '/all/summary?event=' + encodeURIComponent(eventId), 7 * 86400);
+    return D.parseDetail(j);
+  };
+
+  /** Exécute f sur chaque élément, au plus n à la fois. */
+  const pool = async (items, n, f) => {
+    const out = new Array(items.length);
+    let next = 0;
+    const worker = async () => {
+      while (next < items.length) {
+        const i = next++;
+        try {
+          out[i] = await f(items[i], i);
+        } catch (e) {
+          out[i] = null;
+        }
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(n, items.length) }, worker));
+    return out;
+  };
+  D.pool = pool;
+
+  /**
+   * Statistiques des derniers matchs des deux équipes (corners, cartons, tirs,
+   * fautes, hors-jeu, arrêts, penaltys) et buteurs, pour PRONO.Stats.
+   */
+  D.stats = async function (m, nGames) {
+    const N = nGames || 10;
+    const side = async (team) => {
+      const games = (team.recent && team.recent.length ? team.recent : team.games || []).filter((g) => g && g.id).slice(0, N);
+      const det = await pool(games, 4, (g) => D.detail(g.id));
+      const hist = { pen: [] };
+      for (const id of Object.keys(STAT_MAP)) hist[id] = [];
+      const scorers = {};
+      let teamGoals = 0;
+      let used = 0;
+      let withEvents = 0;
+      games.forEach((g, i) => {
+        const d = det[i];
+        if (!d || !d.completed) return;
+        const me = d.homeId === String(team.id) ? 'h' : d.awayId === String(team.id) ? 'a' : null;
+        if (!me) return;
+        const k = me === 'h' ? 0 : 1;
+        const op = me === 'h' ? 'a' : 'h';
+        let any = false;
+        for (const id of Object.keys(STAT_MAP)) {
+          const v = d.stats[id];
+          if (!v) continue;
+          hist[id].push({ isHome: me === 'h', for: v[k], against: v[1 - k], w: g.w || 1 });
+          any = true;
+        }
+        if (d.pens) hist.pen.push({ isHome: me === 'h', for: d.pens[me], against: d.pens[op] });
+        if (d.goals) {
+          withEvents++;
+          for (const gl of d.goals) {
+            if (gl.side !== me || gl.period > 2) continue;
+            teamGoals++;
+            if (gl.type === 'OG' || !gl.scorer) continue;
+            const s = scorers[gl.scorer] || (scorers[gl.scorer] = { id: gl.scorer, name: gl.name, goals: 0 });
+            s.goals++;
+          }
+        }
+        if (any) used++;
+      });
+      const list = Object.values(scorers).sort((a, b) => b.goals - a.goals);
+      return { hist, n: used, scorers: withEvents >= 3 ? { list, teamGoals, matches: withEvents } : null };
+    };
+    const [h, a] = await Promise.all([side(m.home), side(m.away)]);
+    return {
+      teams: { home: h.hist, away: a.hist },
+      scorers: h.scorers || a.scorers ? { home: h.scorers, away: a.scorers } : null,
+      n: { home: h.n, away: a.n }
+    };
+  };
+
+  /** Score final d'un match terminé et détails pour régler les paris suivis. */
   D.result = async function (eventId) {
     const j = await D.get(ESPN + '/all/summary?event=' + encodeURIComponent(eventId), 120);
     const hc = j.header && j.header.competitions && j.header.competitions[0];
@@ -416,12 +599,30 @@
     const ls = (c) => (c.linescores || []).map((l) => num(l.displayValue != null ? l.displayValue : l.value));
     const lh = ls(h);
     const la = ls(a);
-    return {
+    const out = {
       completed: true,
       hg: num(h.score), ag: num(a.score),
       hthg: lh.length >= 2 ? lh[0] : NaN, htag: la.length >= 2 ? la[0] : NaN,
       detail: st.shortDetail || 'Terminé'
     };
+    const d = D.parseDetail(j);
+    if (d) {
+      // Paris réglés sur le temps réglementaire (90 minutes + temps additionnel).
+      const extraTime = lh.length > 2 || la.length > 2 || /AET|Pens|prol|t\.a\.b/i.test(out.detail);
+      if (extraTime) {
+        if (lh.length >= 2 && la.length >= 2) {
+          out.hg = lh[0] + lh[1];
+          out.ag = la[0] + la[1];
+        }
+        out.aet = true;
+      }
+      if (d.goals) out.goals = d.goals.filter((g) => g.period <= 2);
+      if (out.goals && out.goals.length !== out.hg + out.ag) delete out.goals;
+      out.stats = extraTime ? {} : d.stats;
+      out.statsH1 = d.statsH1;
+      if (d.pens && !extraTime) out.pens = d.pens;
+    }
+    return out;
   };
 
   D.ESPN = ESPN;

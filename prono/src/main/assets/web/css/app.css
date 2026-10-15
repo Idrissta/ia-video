@@ -312,3 +312,19 @@ main { flex: 1; min-height: 0; position: relative; }
 .setting:first-child { border-top: 0; }
 .setting .grow b { display: block; font-size: 14px; }
 .setting .grow span { font-size: 12px; color: var(--muted); }
+
+/* --- Paris : recherche, catégories, score exact --- */
+.mk-search { margin: 0 0 10px; }
+.mk-chips { padding-bottom: 6px; }
+.mk-chips .chip { white-space: nowrap; }
+.stats-note { margin: 2px 2px 10px; font-size: 12px; }
+.spin-s { display: inline-block; width: 11px; height: 11px; border: 2px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: -1px; margin-right: 4px; }
+.scores { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.scx { background: var(--bg2); border-radius: 12px; padding: 10px 6px; text-align: center; }
+.scx b { display: block; font-size: 20px; font-weight: 900; letter-spacing: 1px; }
+.scx span { font-size: 12px; color: var(--muted); font-weight: 700; }
+.scx.top { background: rgba(34, 197, 94, 0.14); outline: 1px solid var(--accent); }
+.scx.top b { color: var(--accent); }
+button.link { display: flex; align-items: center; gap: 4px; margin: 12px auto 0; padding: 6px 10px; font-weight: 800; font-size: 13px; color: var(--accent); }
+button.link svg { width: 16px; height: 16px; transform: rotate(-90deg); }
+.plist button.it { width: 100%; text-align: left; color: inherit; font: inherit; background: none; }

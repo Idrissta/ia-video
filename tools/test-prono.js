@@ -18,11 +18,12 @@ const ctx = {
 };
 ctx.globalThis = ctx;
 vm.createContext(ctx);
-for (const f of ['leagues.js', 'engine.js', 'data.js']) {
+for (const f of ['leagues.js', 'engine.js', 'stats.js', 'data.js']) {
   vm.runInContext(fs.readFileSync(path.join(dir, f), 'utf8'), ctx, { filename: f });
 }
 const E = ctx.PRONO.Engine;
 const D = ctx.PRONO.Data;
+const ST = ctx.PRONO.Stats;
 
 let failed = 0;
 let passed = 0;
@@ -154,8 +155,9 @@ for (const L of [0.5, 1.5, 2.5, 3.5, 4.5]) {
   const u = mk('total').sels.find((s) => s.key === 'U' + L).p;
   check('plus + moins = 1 (' + L + ')', near(o + u, 1, 1e-9));
 }
-const cs = mk('cs').sels;
+const cs = mk('cs').sels.filter((s) => s.key !== 'CSO');
 check('scores exacts triés', cs.every((s, i) => i === 0 || cs[i - 1].p >= s.p));
+check('score exact complet (0-0 à 5-5 + autre)', cs.length === 36 && near(sum(mk('cs').sels.map((s) => s.p)), 1, 1e-9));
 
 /* Cohérence : la probabilité affichée correspond au règlement réel --------- */
 // Marchés du temps réglementaire : on parcourt la matrice des scores ;
@@ -207,8 +209,128 @@ for (const m of res.markets) {
   }
 }
 check('presque tous les paris se règlent automatiquement', settled >= 280, settled + ' réglés, non réglés : ' + unsettled.join(' '));
-unsettled = unsettled.filter((k) => !/^(FG|LG|FT)/.test(k));
-check('seuls les paris « premier/dernier but » restent manuels', unsettled.length === 0, unsettled.join(' '));
+// Les paris liés aux minutes et à l'ordre des buts ont besoin du déroulé du match (testés plus bas).
+const needGoals = (k) => E.settle(k, { hg: 1, ag: 1, hthg: 0, htag: 1, goals: [{ min: 10, extra: 0, side: 'h', type: '' }, { min: 80, extra: 0, side: 'a', type: '' }] }) !== null;
+const manual = unsettled.filter((k) => !needGoals(k));
+check('seuls « but de la tête » reste à vérifier soi-même', manual.every((k) => /^HD[YN]$/.test(k)), manual.join(' '));
+
+/* Minutes et ordre des buts : comparaison avec une simulation du match ------- */
+{
+  const r0 = E.analyze(input, { rho: 0 });
+  const T = E.timeProfile(E.lastHtShare);
+  const cumW = T.cum;
+  let sd = 12345;
+  const u = () => (sd = (sd * 48271) % 2147483647) / 2147483647;
+  const poisN = (l) => {
+    const L = Math.exp(-l);
+    let k = 0;
+    let q = 1;
+    do {
+      k++;
+      q *= u();
+    } while (q > L);
+    return k - 1;
+  };
+  const minute = () => {
+    const x = u();
+    let m = 1;
+    while (m < 90 && cumW[m] < x) m++;
+    const w = cumW[m] - cumW[m - 1];
+    const extra = (m === 45 && u() < T.st1 / w) || (m === 90 && u() < T.st2 / w) ? 1 + Math.floor(u() * 5) : 0;
+    return { min: m, extra };
+  };
+  const sims = [];
+  const NS = 60000;
+  for (let i = 0; i < NS; i++) {
+    const hg = poisN(r0.lh);
+    const ag = poisN(r0.la);
+    const goals = [];
+    for (let k = 0; k < hg; k++) goals.push(Object.assign(minute(), { side: 'h', type: u() < E.GOAL_TYPES.PG / (1 - E.GOAL_TYPES.OG) ? 'PG' : '' }));
+    for (let k = 0; k < ag; k++) goals.push(Object.assign(minute(), { side: 'a', type: '' }));
+    sims.push({ hg, ag, goals });
+  }
+  let n = 0;
+  for (const m of r0.markets) {
+    for (const s of m.sels) {
+      if (!/^(GB|GI|FT|R\d|GL|GST|T15_|T76_|FG|LG|FR|FW|RA|CB|BL)/.test(s.key) || /^FT$/.test(s.key)) continue;
+      let won = 0;
+      for (const sm of sims) if (E.settle(s.key, sm) === 'won') won++;
+      const f = won / NS;
+      const tol = 4.5 * Math.sqrt(Math.max(s.p * (1 - s.p), 1e-4) / NS) + 0.004;
+      n++;
+      check('simulation ↔ probabilité ' + s.key, Math.abs(f - s.p) <= tol, s.p.toFixed(4) + ' vs ' + f.toFixed(4));
+    }
+  }
+  check('paris de minutes/ordre vérifiés par simulation', n >= 70, n);
+}
+
+/* Paris statistiques : probabilité ↔ règlement ------------------------------- */
+{
+  const names = { home: 'Raja', away: 'Wydad' };
+  const mkHist = (c, f, a) => Array.from({ length: 10 }, (_, i) => ({ isHome: i % 2 === 0, for: f + (i % 3) - 1, against: a + (i % 2), w: 1 }));
+  const teams = { home: {}, away: {} };
+  for (const id of Object.keys(ST.SPECS)) {
+    const sp = ST.SPECS[id];
+    teams.home[id] = mkHist(id, Math.round(sp.home * 1.2), Math.round(sp.away * 0.9));
+    teams.away[id] = mkHist(id, Math.round(sp.away * 0.9), Math.round(sp.home * 1.1));
+  }
+  teams.home.pen = mkHist('pen', 0, 0).map((g, i) => Object.assign(g, { for: i === 2 ? 1 : 0, against: 0 }));
+  teams.away.pen = mkHist('pen', 0, 0).map((g, i) => Object.assign(g, { for: 0, against: i === 4 ? 1 : 0 }));
+  const sr = ST.analyze(teams, names, false, { lh: 1.6, la: 1.1, scorers: { home: { list: [{ id: '9', name: 'Buteur', goals: 5 }], teamGoals: 15, matches: 10 }, away: null } });
+  check('marchés statistiques', sr.markets.length >= 40, sr.markets.length);
+  const ids = new Set(sr.markets.map((m) => m.id.split(':')[0]));
+  for (const id of ['corners', 'yellow', 'shotsOn', 'shots', 'fouls', 'offsides', 'saves', 'red', 'pen', 'scorer1']) check('marché ' + id + ' présent', ids.has(id));
+  let checked = 0;
+  for (const m of sr.markets) {
+    const stat = m.stat;
+    if (!ST.SPECS[stat] || stat === 'red') continue;
+    const spec = ST.SPECS[stat];
+    const lam = sr.expected[stat];
+    const N = 70;
+    const isH1 = /:h1$/.test(m.id);
+    const f = isH1 ? spec.h1 : 1;
+    const ph = ST.nb(lam.lh * f, spec.k, N);
+    const pa = ST.nb(lam.la * f, spec.k, N);
+    for (const s of m.sels) {
+      let won = 0;
+      let tot = 0;
+      let unknown = false;
+      for (let x = 0; x <= N && !unknown; x++) for (let y = 0; y <= N; y++) {
+        const pr = ph[x] * pa[y];
+        if (pr < 1e-14) continue;
+        const r = isH1 ? { hg: 0, ag: 0, stats: { [stat]: [x + 50, y + 50] }, statsH1: { [stat]: [x, y] } } : { hg: 0, ag: 0, stats: { [stat]: [x, y] } };
+        const st = E.settle(s.key, r);
+        if (st === null) {
+          unknown = true;
+          break;
+        }
+        if (st === 'won') won += pr;
+        tot += pr;
+      }
+      if (unknown) {
+        check('pari statistique réglable ' + s.key, /^cornersF[12]$/.test(s.key), s.key);
+        continue;
+      }
+      checked++;
+      check('probabilité ↔ règlement ' + s.key, near(s.p, won / tot, 2e-6), s.p.toFixed(5) + ' ≠ ' + (won / tot).toFixed(5));
+    }
+  }
+  check('paris statistiques vérifiés', checked >= 150, checked);
+  // Carton rouge et penalty (lois de Poisson).
+  const red = sr.expected.red;
+  const pRed = sr.markets.find((m) => m.id === 'red').sels[0].p;
+  check('carton rouge ↔ règlement', near(pRed, 1 - Math.exp(-(red.lh + red.la)), 1e-9) && E.settle('redY', { stats: { red: [0, 1] } }) === 'won' && E.settle('redN', { stats: { red: [0, 0] } }) === 'won');
+  const pen = sr.expected.pen;
+  check('penalty : plus probable pour l’équipe qui en obtient', pen.p1 > pen.p2, pen.p1 + ' / ' + pen.p2);
+  check('penalty : proche de la fréquence mesurée', pen.p > 0.18 && pen.p < 0.4, pen.p);
+  check('penalty ↔ règlement', E.settle('penY', { pens: { h: 1, a: 0, scored: 0 } }) === 'won' && E.settle('penSY', { pens: { h: 1, a: 0, scored: 0 } }) === 'lost' && E.settle('pen2Y', { pens: { h: 1, a: 0 } }) === 'lost');
+  const sc = sr.markets.find((m) => m.id === 'scorer1');
+  check('buteur : probabilité', sc && near(sc.sels[0].p, 1 - Math.exp(-1.6 * 5 / 17), 1e-9), sc && sc.sels[0].p);
+  const g9 = [{ min: 20, side: 'h', scorer: '9', type: '' }, { min: 50, side: 'a', scorer: '3', type: '' }];
+  check('buteur ↔ règlement', E.settle('SC9', { hg: 1, ag: 1, goals: g9 }) === 'won' && E.settle('SC3', { hg: 1, ag: 1, goals: [{ min: 20, side: 'h', scorer: '9', type: '' }, { min: 50, side: 'a', scorer: '3', type: 'OG' }] }) === 'lost' && E.settle('SC9', { hg: 1, ag: 0 }) === null);
+  const noData = ST.analyze({ home: {}, away: {} }, names, false, {});
+  check('sans statistiques : corners et cartons sur moyennes', noData.markets.some((m) => m.id === 'corners:total') && noData.markets.some((m) => m.id === 'yellow:total') && !noData.markets.some((m) => m.id === 'fouls:total'));
+}
 
 /* Cotes de référence et value ------------------------------------------------ */
 {
@@ -401,6 +523,49 @@ routes['/all/scoreboard'] = (url) => {
   })();
   check('résultat final', r.completed && r.hg === 3 && r.ag === 1 && r.hthg === 1 && r.htag === 1, JSON.stringify(r));
   check('règlement sur le résultat', E.settle('HF X1'.replace(' ', ''), r) === 'won' && E.settle('O2.5', r) === 'won');
+
+  /* Détails d'un match terminé (statistiques, buts, penaltys) --------------- */
+  const stat = (o) => Object.entries(o).map(([name, v]) => ({ name, displayValue: String(v) }));
+  const detailJson = (opts) => ({
+    header: { id: opts.id, competitions: [{ status: { type: { completed: true, state: 'post', shortDetail: opts.detail || 'FT' } }, competitors: [
+      { homeAway: 'home', id: '101', score: String(opts.hs), team: { id: '101' }, linescores: opts.lh },
+      { homeAway: 'away', id: '202', score: String(opts.as), team: { id: '202' }, linescores: opts.la }] }] },
+    boxscore: { teams: [
+      { homeAway: 'home', team: { id: '101' }, statistics: stat({ wonCorners: 7, yellowCards: 2, redCards: 0, shotsOnTarget: 6, totalShots: 15, foulsCommitted: 10, offsides: 1, saves: 2 }) },
+      { homeAway: 'away', team: { id: '202' }, statistics: stat({ wonCorners: 3, yellowCards: 3, redCards: 1, shotsOnTarget: 3, totalShots: 8, foulsCommitted: 14, offsides: 3, saves: 4 }) }] },
+    keyEvents: opts.events
+  });
+  const ev = (type, min, team, extra) => Object.assign({ type: { type }, clock: { displayValue: min }, period: { number: parseInt(min, 10) > 90 ? 3 : parseInt(min, 10) > 45 ? 2 : 1 }, team: team ? { id: team } : undefined, shootout: false }, extra || {});
+  const events = [
+    ev('kickoff', '', null),
+    ev('goal', "12'", '101', { scoringPlay: true, participants: [{ athlete: { id: '9', displayName: 'Avant' } }] }),
+    ev('yellow-card', "30'", '202'),
+    ev('penalty---saved', "40'", '101'),
+    ev('own-goal', "45'+2'", '101', { scoringPlay: true, participants: [{ athlete: { id: '55', displayName: 'Défenseur' } }] }),
+    ev('penalty---scored', "70'", '202', { scoringPlay: true, participants: [{ athlete: { id: '7', displayName: 'Tireur' } }] }),
+    ev('red-card', "80'", '202'),
+    ev('goal', "105'", '202', { scoringPlay: true, participants: [{ athlete: { id: '7', displayName: 'Tireur' } }] }),
+    ev('penalty---scored', "120'", '101', { scoringPlay: true, shootout: true })
+  ];
+  const det = D.parseDetail(detailJson({ id: 'd1', hs: 2, as: 2, events, lh: [{ displayValue: '2' }, { displayValue: '0' }, { displayValue: '0' }], la: [{ displayValue: '0' }, { displayValue: '1' }, { displayValue: '1' }], detail: 'AET' }));
+  check('détail : statistiques', det.stats.corners[0] === 7 && det.stats.corners[1] === 3 && det.stats.red[1] === 1 && det.stats.saves[1] === 4, JSON.stringify(det.stats));
+  check('détail : buts (tirs au but exclus)', det.goals && det.goals.length === 4 && det.goals[1].type === 'OG' && det.goals[1].min === 45 && det.goals[1].extra === 2 && det.goals[2].type === 'PG', JSON.stringify(det.goals));
+  check('détail : penaltys accordés', det.pens.h === 1 && det.pens.a === 1 && det.pens.scored === 1, JSON.stringify(det.pens));
+  check('détail : cartons de 1re mi-temps', det.statsH1.yellow[1] === 1);
+  routes['/all/summary'] = (url) => (/event=d1/.test(url) ? detailJson({ id: 'd1', hs: 2, as: 2, events, lh: [{ displayValue: '2' }, { displayValue: '0' }, { displayValue: '0' }], la: [{ displayValue: '0' }, { displayValue: '1' }, { displayValue: '1' }], detail: 'AET' }) : summary);
+  D.clearCache();
+  const aet = await D.result('d1');
+  check('prolongation : score à 90 minutes', aet.hg === 2 && aet.ag === 1 && aet.aet, JSON.stringify([aet.hg, aet.ag]));
+  check('prolongation : buts du temps réglementaire', aet.goals && aet.goals.length === 3, aet.goals && aet.goals.length);
+  check('prolongation : 1X2 réglé sur 90 minutes', E.settle('1', aet) === 'won' && E.settle('X', aet) === 'lost');
+  check('prolongation : premier but et penalty', E.settle('FG1', aet) === 'won' && E.settle('PGY', aet) === 'won' && E.settle('OGY', aet) === 'won' && E.settle('GST1Y', aet) === 'won');
+  check('prolongation : statistiques non réglées', E.settle('cornersO9.5', aet) === null);
+  // Statistiques des derniers matchs d'une équipe.
+  const team = { id: '101', recent: [{ id: 'd1', date: new Date(Date.now() - 864e5), w: 1 }, { id: 'zz', date: new Date(Date.now() - 2 * 864e5) }] };
+  const st2 = await D.stats({ home: team, away: { id: '202', recent: [{ id: 'd1' }] } });
+  check('statistiques d’équipe : point de vue', st2.teams.home.corners[0].for === 7 && st2.teams.home.corners[0].against === 3 && st2.teams.away.corners[0].for === 3, JSON.stringify(st2.teams.home.corners));
+  check('statistiques d’équipe : match introuvable ignoré', st2.n.home === 1 && st2.n.away === 1);
+  check('statistiques d’équipe : penaltys', st2.teams.home.pen[0].for === 1 && st2.teams.home.pen[0].against === 1);
 
   console.log(passed + ' tests réussis, ' + failed + ' échec(s).');
   process.exit(failed ? 1 : 0);

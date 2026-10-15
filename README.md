@@ -4,7 +4,7 @@ Ce dépôt contient quatre applications Android compilées automatiquement par G
 
 | Application | Dossier | Description |
 | --- | --- | --- |
-| **PronoFoot** | `prono/` | Pronostics de football : forme des équipes, confrontations directes et cotes de référence, 49 marchés de paris (1X2, buts, handicaps, mi-temps, score exact…). |
+| **PronoFoot** | `prono/` | Pronostics de football : forme des équipes, confrontations directes et cotes de référence, plus de 120 marchés (1X2, buts, minutes, score exact, corners, cartons, penalty, buteurs…). |
 | **Vélo Champion** | `velo/` | Jeu de course cycliste en 3D : 5 niveaux de 10 étapes contre 10 adversaires, vélos plus rapides à acheter. |
 | **CINÉ-GENESIS** | `film/` | Studio de création IA : images 4K, vidéos 4K (Kling 3.0, LTX-2.3, Veo 3.1…) et films complets montés en 4K sur le téléphone. |
 | **Nova Graph** | `app/` | Calculatrice graphique hors ligne. |
@@ -42,11 +42,25 @@ Android 8.0 ou plus récent, connexion Internet requise (aucune clé ni compte �
   filtre « grands championnats » / « tous » / « à venir », score en direct et cotes 1X2 de référence.
 - **Pronostic** : pour chaque match, le pari le plus sûr (ex. « Plus de 1,5 but », « Les deux équipes marquent »),
   5 autres pronostics classés, les paris *value*, la probabilité 1X2, les buts attendus et un indice de confiance.
-- **Paris** : **49 marchés et plus de 300 paris** inspirés de 1xBet — 1X2, double chance, remboursé si nul,
-  les deux équipes marquent, totaux (0,5 à 6,5), totaux asiatiques, totaux par équipe, nombre exact de buts,
-  pair/impair, handicaps européens et asiatiques (lignes .25/.75 comprises), écart, résultat + total,
-  double chance + total, gagne à zéro, score exact, 1re et 2e mi-temps, mi-temps/fin de match, mi-temps la plus
-  prolifique, premier but, moment du premier but… Pour chaque pari : probabilité et **cote juste**.
+- **Paris** : **plus de 120 marchés et près de 800 paris** inspirés de 1xBet, avec recherche (« penalty »,
+  « corners », « 15 minutes »…) et catégories :
+  - *Principaux et buts* : 1X2, double chance, remboursé si nul, les deux équipes marquent, totaux (0,5 à 6,5),
+    totaux asiatiques, buts de chaque équipe (0,5 à 4,5 et nombre exact), nombre exact de buts, pair/impair,
+    types de buts (penalty, contre son camp, tête) ;
+  - *Minutes* : but dans les 2, 5, 10, 15, 20, 30 premières minutes, but dans chaque tranche de 15 minutes,
+    moment du premier but, résultat à la 15e/30e/60e/75e minute, but après la 80e, but dans le temps additionnel,
+    équipe qui marque dans les 15 premières / après la 75e minute ;
+  - *Ordre des buts* : premier et dernier but, premier but + résultat, premier à 2 / 3 buts, victoire après avoir
+    été mené, les deux équipes mènent au score ;
+  - *Score exact* : tous les scores de 0-0 à 5-5 (+ autre), scores groupés, score exact de chaque mi-temps ;
+  - *Handicaps et combinés* : handicaps européens et asiatiques (lignes .25/.75 comprises), écart, résultat + total,
+    double chance + total, les deux marquent + total, gagne à zéro… ;
+  - *Mi-temps* : 1X2, totaux, score exact, mi-temps/fin de match, mi-temps la plus prolifique… ;
+  - *Statistiques* : **corners**, **cartons jaunes**, **carton rouge**, **penalty**, **tirs cadrés**, **tirs**,
+    **fautes**, **hors-jeu**, **arrêts du gardien** (totaux, par équipe, qui en aura le plus, handicaps, 1re mi-temps) ;
+  - *Buteurs* : probabilité de marquer des joueurs de chaque équipe.
+
+  Pour chaque pari : probabilité et **cote juste**.
 - **Cotes 1xBet** : saisir la cote proposée par votre bookmaker à côté d'un pari affiche aussitôt sa
   **value** (espérance de gain) ; les paris où la cote est supérieure à la cote juste sont mis en avant.
 - **Forme** et **Face-à-face** : les 5 derniers matchs de chaque équipe et leurs 5 dernières confrontations.
@@ -57,7 +71,8 @@ Android 8.0 ou plus récent, connexion Internet requise (aucune clé ni compte �
 ### La méthode
 
 1. **Données** (API publique ESPN) : 5 derniers matchs de chaque équipe, 5 dernières confrontations directes,
-   classement et cotes de référence, complétés par jusqu'à **20 matchs récents** par équipe.
+   classement et cotes de référence, complétés par jusqu'à **20 matchs récents** par équipe, et les statistiques
+   détaillées (corners, cartons, tirs, fautes, penaltys, buteurs) de leurs **10 derniers matchs**.
 2. **Force des équipes** : attaque et défense de chaque équipe, à domicile et à l'extérieur, avec des matchs
    récents plus importants que les anciens et un retour vers la moyenne quand il y a peu de matchs.
 3. **Confrontations directes** : petit ajustement selon les 5 derniers face-à-face (les plus récents comptent plus).
@@ -65,6 +80,11 @@ Android 8.0 ou plus récent, connexion Internet requise (aucune clé ni compte �
    calculé à partir de ces probabilités ; mi-temps : deux périodes modélisées séparément.
 5. **Cotes de référence** : la marge du bookmaker est retirée, puis le marché est combiné au modèle
    (réglage *Combiner avec les cotes de référence*).
+6. **Minutes** : la répartition des buts minute par minute est mesurée sur 2 779 matchs ESPN (un but dans les
+   2 premières minutes dans 3 % des matchs, avant la 15e dans 32 %) ; l'ordre des buts est calculé exactement.
+7. **Statistiques** : production et concession de chaque équipe (corners obtenus / concédés, cartons reçus /
+   provoqués…) sur ses derniers matchs, loi binomiale négative ; réglages mesurés sur 33 000 matchs
+   (`node tools/prono-stats-backtest.js`).
 
 Le modèle a été réglé puis **testé sur 7 943 matchs réels jamais vus** (12 championnats, données
 [football-data.co.uk](https://www.football-data.co.uk)) : `node tools/prono-backtest.js`.
@@ -77,6 +97,13 @@ Le modèle a été réglé puis **testé sur 7 943 matchs réels jamais vus** (1
 | Bon résultat 1X2 — 20 derniers matchs + face-à-face | 51 % |
 | Bon résultat 1X2 — avec les cotes de référence | 53 % |
 | Calibration : paris annoncés à 83 % | réalisés à 83 % |
+| Cartons ±4,5 — avec les stats des équipes / moyenne du championnat | 62,7 % / 61,6 % |
+| Fautes ±21,5 — avec les stats des équipes / moyenne du championnat | 69,7 % / 66,4 % |
+| Tirs ±24,5 — avec les stats des équipes / moyenne du championnat | 60,2 % / 56,3 % |
+| Corners : équipe qui en obtient le plus | 63 % |
+
+Pari impossible à prévoir honnêtement faute de données publiques : « le gardien touche le ballon dans les
+2 premières minutes » (remplacé par les arrêts du gardien).
 
 Aucune méthode ne gagne à tous les coups : un pari annoncé à 80 % perd en moyenne une fois sur cinq.
 Les paris sportifs sont réservés aux plus de 18 ans ; ne misez que ce que vous pouvez vous permettre de perdre.
@@ -88,8 +115,9 @@ prono/src/main/
 ├── java/com/idrissta/prono/MainActivity.java   coque native : WebView, relais réseau vers l'API ESPN, partage, retour
 └── assets/web/
     ├── index.html, css/app.css   interface (thème sombre)
-    ├── js/engine.js    modèle : forces des équipes, Dixon-Coles, marge des cotes, 49 marchés, value, règlement
-    ├── js/data.js      données ESPN : matchs du jour, résumé d'un match, historiques, résultats
+    ├── js/engine.js    modèle : forces des équipes, Dixon-Coles, marge des cotes, marchés de buts, minutes, value, règlement
+    ├── js/stats.js     corners, cartons, penalty, tirs, fautes, hors-jeu, arrêts, buteurs
+    ├── js/data.js      données ESPN : matchs du jour, résumé d'un match, historiques, statistiques, résultats
     ├── js/leagues.js   noms français et ordre des compétitions
     └── js/ui.js        écrans, saisie des cotes, suivis, analyse manuelle, réglages
 ```

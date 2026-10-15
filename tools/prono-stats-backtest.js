@@ -154,7 +154,7 @@ const nbLog = (x, m, k) => {
     const grid = {
       prior: [1, 2, 4, 8, 16, 40],
       decay: [0.85, 0.9, 0.95, 1],
-      window: [5, 10, 20],
+      window: [10], // l'application lit les 10 derniers matchs de chaque équipe
       refPrior: [2, 5, 10, 20, 60],
       k: [2, 4, 6, 8, 12, 20, 40, 100, 1e6]
     };
@@ -170,6 +170,35 @@ const nbLog = (x, m, k) => {
           }
         }
       }
+    }
+    // Dispersion réglée sur les lignes « plus / moins » (ce que l'application affiche).
+    const lines0 = MAIN_LINE[id] || [];
+    if (lines0.length) {
+      const pred = evalSet(train, best).pred;
+      const ouLL = (k) => {
+        let ll = 0;
+        for (const [lh, la, xh, xa] of pred) {
+          const tot = S.conv(S.nb(lh, k, 60), S.nb(la, k, 60));
+          for (const L of lines0) {
+            let u = 0;
+            for (let q = 0; q < L; q++) u += tot[q];
+            const po = Math.min(1 - 1e-9, Math.max(1e-9, 1 - u));
+            ll += -Math.log(xh + xa > L ? po : 1 - po);
+          }
+        }
+        return ll;
+      };
+      let bk = best.k;
+      let bl = ouLL(best.k);
+      for (const k of grid.k) {
+        const l = ouLL(k);
+        if (l < bl) {
+          bl = l;
+          bk = k;
+        }
+      }
+      if (bk !== best.k) console.log(id + ' : dispersion ' + best.k + ' → ' + bk + ' (lignes plus/moins)');
+      best = Object.assign({}, best, { k: bk });
     }
     const lgSpec = Object.assign({}, best);
     // Dispersion propre à la référence « moyenne du championnat ».

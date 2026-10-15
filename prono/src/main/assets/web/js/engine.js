@@ -375,6 +375,102 @@
     return { win, lose, push, fair: fairOdd };
   };
 
+  /**
+   * Répartition des buts dans le match (parts par tranche de 15 minutes,
+   * temps additionnel compris dans 31-45 et 76-90) et part des buts marqués
+   * dans le temps additionnel de chaque mi-temps. Mesurées par tools/prono-stats.js.
+   */
+  /**
+   * Nombre de buts marqués à chaque minute (1 à 90 ; temps additionnel compté
+   * dans la 45e et la 90e), mesuré sur 2 779 matchs ESPN (tools/prono-stats.js),
+   * et part des buts marqués dans le temps additionnel de chaque mi-temps.
+   */
+  E.TIME = {
+    minutes: [39, 45, 73, 71, 79, 70, 90, 70, 73, 84, 84, 66, 66, 72, 66, 75, 63, 84, 73, 79, 62, 92, 87, 77, 81, 79, 70, 84, 81, 90,
+      69, 86, 74, 70, 79, 71, 74, 89, 103, 71, 78, 72, 87, 89, 323, 50, 74, 85, 87, 90, 114, 101, 115, 94, 92, 99, 105, 91, 96, 87,
+      89, 88, 83, 71, 77, 99, 82, 82, 89, 86, 83, 93, 87, 109, 85, 74, 76, 78, 102, 77, 84, 84, 92, 84, 85, 98, 97, 104, 101, 662],
+    st1: 0.029,
+    st2: 0.0677
+  };
+  /** Part des buts de chaque type (penalty, contre son camp : ESPN, 8 269 buts ; tête : grands championnats). */
+  E.GOAL_TYPES = { PG: 0.073, OG: 0.029, HD: 0.11 };
+
+  const timeCache = {};
+  /** cum[m] : part des buts marqués jusqu'à la fin de la minute m (m = 0..90). */
+  E.timeProfile = function (htShare) {
+    const key = htShare.toFixed(4);
+    if (timeCache[key]) return timeCache[key];
+    const raw = E.TIME.minutes;
+    // Lissage léger (moyenne sur 3 minutes) sauf aux minutes particulières :
+    // coup d'envoi (1, 2, 46), temps additionnel (45, 90).
+    const keep = new Set([1, 2, 45, 46, 90]);
+    const w = [0];
+    for (let m = 1; m <= 90; m++) {
+      if (keep.has(m) || keep.has(m - 1) && keep.has(m + 1)) w[m] = raw[m - 1];
+      else {
+        const a = keep.has(m - 1) ? raw[m - 1] : raw[m - 2];
+        const c = keep.has(m + 1) ? raw[m - 1] : raw[m];
+        w[m] = (a + raw[m - 1] + c) / 3;
+      }
+    }
+    // Mise à l'échelle : la part de la 1re mi-temps vaut htShare (modèle des mi-temps).
+    let f1 = 0;
+    let f2 = 0;
+    for (let m = 1; m <= 45; m++) f1 += w[m];
+    for (let m = 46; m <= 90; m++) f2 += w[m];
+    for (let m = 1; m <= 90; m++) w[m] *= m <= 45 ? htShare / f1 : (1 - htShare) / f2;
+    const cum = [0];
+    for (let m = 1; m <= 90; m++) cum[m] = cum[m - 1] + w[m];
+    cum[90] = 1;
+    const st1 = Math.min(E.TIME.st1, w[45] * 0.9);
+    const st2 = Math.min(E.TIME.st2, w[90] * 0.9);
+    return (timeCache[key] = { cum, st1, st2 });
+  };
+
+  const seqCache = {};
+  /**
+   * Pour un score final i-j, ordre des buts uniformément aléatoire :
+   * probabilité que le domicile mène à un moment (hl), l'extérieur (al), les
+   * deux (bl), et qui atteint 2 / 3 buts en premier.
+   */
+  E.sequence = function (i, j) {
+    const key = i + '-' + j;
+    if (seqCache[key]) return seqCache[key];
+    // État : a, b, drapeaux (mené domicile, mené extérieur, course à 2, course à 3).
+    let dist = new Map([['0,0,0,0,0,0', 1]]);
+    for (let step = 0; step < i + j; step++) {
+      const next = new Map();
+      for (const [st, pr] of dist) {
+        const [a, b, hl, al, r2, r3] = st.split(',').map(Number);
+        const remH = i - a;
+        const remA = j - b;
+        const tot = remH + remA;
+        for (const [da, db, q] of [[1, 0, remH / tot], [0, 1, remA / tot]]) {
+          if (q <= 0) continue;
+          const na = a + da;
+          const nb = b + db;
+          const nr2 = r2 || (na === 2 ? 1 : nb === 2 ? 2 : 0);
+          const nr3 = r3 || (na === 3 ? 1 : nb === 3 ? 2 : 0);
+          const k = [na, nb, hl || (na > nb ? 1 : 0), al || (nb > na ? 1 : 0), nr2, nr3].join(',');
+          next.set(k, (next.get(k) || 0) + pr * q);
+        }
+      }
+      dist = next;
+    }
+    const out = { hl: 0, al: 0, bl: 0, r2h: 0, r2a: 0, r3h: 0, r3a: 0 };
+    for (const [st, pr] of dist) {
+      const [, , hl, al, r2, r3] = st.split(',').map(Number);
+      if (hl) out.hl += pr;
+      if (al) out.al += pr;
+      if (hl && al) out.bl += pr;
+      if (r2 === 1) out.r2h += pr;
+      if (r2 === 2) out.r2a += pr;
+      if (r3 === 1) out.r3h += pr;
+      if (r3 === 2) out.r3a += pr;
+    }
+    return (seqCache[key] = out);
+  };
+
   E.markets = function (ft, h1, h2, names, lh, la) {
     const n = ft.length - 1;
     const H = names.home;
@@ -430,7 +526,7 @@
       const marg = new Array(n + 1).fill(0);
       for (let i = 0; i <= n; i++) for (let j = 0; j <= n; j++) marg[idx === 0 ? i : j] += ft[i][j];
       const s = [];
-      for (const L of [0.5, 1.5, 2.5, 3.5]) {
+      for (const L of [0.5, 1.5, 2.5, 3.5, 4.5]) {
         let u = 0;
         for (let k = 0; k < L; k++) u += marg[k];
         s.push(sel(id + 'O' + L, 'Plus de ' + fx(L), 1 - u), sel(id + 'U' + L, 'Moins de ' + fx(L), u));
@@ -473,7 +569,7 @@
 
     // --- Handicaps
     const eh = [];
-    for (const L of [-2, -1, 1, 2]) {
+    for (const L of [-3, -2, -1, 1, 2, 3]) {
       const t = (L > 0 ? '+' : '') + fx(L);
       const k = (L > 0 ? '+' : '') + L;
       eh.push(sel('EH1' + k, H + ' (' + t + ')', sum((i, j) => i + L > j)),
@@ -539,18 +635,44 @@
       }
       add('dcbtts', 'Combinés', 'Double chance + Les deux marquent', s);
     }
-    add('btotal', 'Combinés', 'Les deux marquent + Total', [
-      sel('BTO2.5', 'Les deux marquent et plus de 2,5', sum((i, j) => i > 0 && j > 0 && i + j > 2.5)),
-      sel('BTU2.5', 'Les deux marquent et moins de 2,5', sum((i, j) => i > 0 && j > 0 && i + j < 2.5)),
-      sel('BNO2.5', 'Pas les deux et plus de 2,5', sum((i, j) => !(i > 0 && j > 0) && i + j > 2.5)),
-      sel('BNU2.5', 'Pas les deux et moins de 2,5', sum((i, j) => !(i > 0 && j > 0) && i + j < 2.5))
-    ]);
+    {
+      const s = [];
+      for (const L of [1.5, 2.5, 3.5, 4.5]) {
+        const t = fx(L);
+        s.push(sel('BTO' + L, 'Les deux marquent et plus de ' + t, sum((i, j) => i > 0 && j > 0 && i + j > L)),
+          sel('BTU' + L, 'Les deux marquent et moins de ' + t, sum((i, j) => i > 0 && j > 0 && i + j < L)),
+          sel('BNO' + L, 'Pas les deux et plus de ' + t, sum((i, j) => !(i > 0 && j > 0) && i + j > L)),
+          sel('BNU' + L, 'Pas les deux et moins de ' + t, sum((i, j) => !(i > 0 && j > 0) && i + j < L)));
+      }
+      add('btotal', 'Combinés', 'Les deux marquent + Total', s);
+    }
 
     // --- Score exact
     const cells = [];
     for (let i = 0; i <= Math.min(n, 6); i++) for (let j = 0; j <= Math.min(n, 6); j++) cells.push([i, j, ft[i][j]]);
     cells.sort((x, y) => y[2] - x[2]);
-    add('cs', 'Score exact', 'Score exact', cells.slice(0, 16).map(([i, j, pr]) => sel('CS' + i + '-' + j, i + ' - ' + j, pr)));
+    {
+      const grid = cells.filter(([i, j]) => i <= 5 && j <= 5);
+      const other = 1 - grid.reduce((a, c) => a + c[2], 0);
+      add('cs', 'Score exact', 'Score exact', grid.map(([i, j, pr]) => sel('CS' + i + '-' + j, i + ' - ' + j, pr)).concat([sel('CSO', 'Autre score', other)]), 'Classés du plus probable au moins probable');
+      const grp = (name, f) => sum(f);
+      add('csgroup', 'Score exact', 'Score exact groupé', [
+        sel('CG1', H + ' gagne 1-0, 2-0 ou 2-1', grp('', (i, j) => (i === 1 && j === 0) || (i === 2 && j === 0) || (i === 2 && j === 1))),
+        sel('CG2', H + ' gagne 3-0, 3-1 ou 3-2', grp('', (i, j) => i === 3 && j <= 2)),
+        sel('CG3', H + ' gagne par 4 buts ou plus d’écart', grp('', (i, j) => i - j >= 4)),
+        sel('CGX', 'Nul 0-0 ou 1-1', grp('', (i, j) => i === j && i <= 1)),
+        sel('CGX2', 'Nul 2-2 ou plus', grp('', (i, j) => i === j && i >= 2)),
+        sel('CG4', A + ' gagne 0-1, 0-2 ou 1-2', grp('', (i, j) => (i === 0 && j === 1) || (i === 0 && j === 2) || (i === 1 && j === 2))),
+        sel('CG5', A + ' gagne 0-3, 1-3 ou 2-3', grp('', (i, j) => j === 3 && i <= 2)),
+        sel('CG6', A + ' gagne par 4 buts ou plus d’écart', grp('', (i, j) => j - i >= 4))
+      ]);
+      for (const [id, team, idx] of [['tg1', H, 0], ['tg2', A, 1]]) {
+        const ss = [];
+        for (let k = 0; k <= 3; k++) ss.push(sel('TG' + (idx + 1) + '_' + k, k + ' but' + (k > 1 ? 's' : ''), sum((i, j) => (idx === 0 ? i : j) === k)));
+        ss.push(sel('TG' + (idx + 1) + '_4', '4 buts ou plus', sum((i, j) => (idx === 0 ? i : j) >= 4)));
+        add(id, 'Buts', 'Nombre de buts de ' + team, ss);
+      }
+    }
 
     // --- Mi-temps (modèle par périodes indépendantes)
     const halfBasic = (m) => E.basic(m);
@@ -568,7 +690,15 @@
       const c = [];
       for (let i = 0; i <= 3; i++) for (let j = 0; j <= 3; j++) c.push([i, j, h1[i][j]]);
       c.sort((x, y) => y[2] - x[2]);
-      add('htcs', 'Mi-temps', '1re mi-temps · Score exact', c.slice(0, 8).map(([i, j, pr]) => sel('HCS' + i + '-' + j, i + ' - ' + j, pr)));
+      add('htcs', 'Mi-temps', '1re mi-temps · Score exact', c.map(([i, j, pr]) => sel('HCS' + i + '-' + j, i + ' - ' + j, pr)).concat([sel('HCSO', 'Autre score', 1 - c.reduce((a, x) => a + x[2], 0))]));
+      const c2 = [];
+      for (let i = 0; i <= 3; i++) for (let j = 0; j <= 3; j++) c2.push([i, j, h2[i][j]]);
+      c2.sort((x, y) => y[2] - x[2]);
+      add('2hcs', 'Mi-temps', '2e mi-temps · Score exact', c2.map(([i, j, pr]) => sel('SCS' + i + '-' + j, i + ' - ' + j, pr)).concat([sel('SCSO', 'Autre score', 1 - c2.reduce((a, x) => a + x[2], 0))]));
+      const hx = [];
+      for (let k = 0; k <= 2; k++) hx.push(sel('HEX' + k, k + ' but' + (k > 1 ? 's' : ''), hb1.tot[k] || 0));
+      hx.push(sel('HEX3', '3 buts ou plus', 1 - (hb1.tot[0] || 0) - (hb1.tot[1] || 0) - (hb1.tot[2] || 0)));
+      add('htexact', 'Mi-temps', '1re mi-temps · Nombre exact de buts', hx);
     }
     {
       const hm = (m, f) => {
@@ -654,6 +784,10 @@
     add('wineither', 'Mi-temps', 'Gagne au moins une mi-temps', [sel('WE1', H, win1Either), sel('WE2', A, win2Either)]);
     add('winboth', 'Mi-temps', 'Gagne les deux mi-temps', [sel('WB1', H, win1Both), sel('WB2', A, win2Both)]);
     add('bttsboth', 'Mi-temps', 'Les deux marquent dans les deux mi-temps', [sel('BBY', 'Oui', bttsBoth), sel('BBN', 'Non', 1 - bttsBoth)]);
+    add('bttshalves', 'Mi-temps', 'Les deux marquent : 1re / 2e mi-temps', [
+      sel('HB2YY', 'Oui / Oui', hb1.btts * hb2.btts), sel('HB2YN', 'Oui / Non', hb1.btts * (1 - hb2.btts)),
+      sel('HB2NY', 'Non / Oui', (1 - hb1.btts) * hb2.btts), sel('HB2NN', 'Non / Non', (1 - hb1.btts) * (1 - hb2.btts))
+    ]);
     add('teamhsh', 'Mi-temps', 'Mi-temps la plus prolifique par équipe', [
       sel('TH11', H + ' : 1re', tHalf[0][0]), sel('TH12', H + ' : 2e', tHalf[0][1]), sel('TH1X', H + ' : égalité', tHalf[0][2]),
       sel('TH21', A + ' : 1re', tHalf[1][0]), sel('TH22', A + ' : 2e', tHalf[1][1]), sel('TH2X', A + ' : égalité', tHalf[1][2])
@@ -663,25 +797,109 @@
       const none = ft[0][0];
       add('firsthalfgoal', 'Mi-temps', 'Mi-temps du premier but', [sel('FH1', '1re mi-temps', r), sel('FH2', '2e mi-temps', Math.max(0, 1 - r - none)), sel('FH0', 'Aucun but', none)]);
     }
+    // --- Ordre des buts : à score final fixé, l'ordre des buts est aléatoire
+    // (processus de Poisson) ; tables exactes calculées une fois pour toutes.
     {
       const none = ft[0][0];
-      const first1 = (1 - none) * lh / (lh + la);
-      add('firstgoal', 'Buts', 'Premier but', [sel('FG1', H, first1), sel('FG0', 'Aucun but', none), sel('FG2', A, 1 - none - first1)]);
-      add('lastgoal', 'Buts', 'Dernier but', [sel('LG1', H, first1), sel('LG0', 'Aucun but', none), sel('LG2', A, 1 - none - first1)]);
-      // Moment du premier but : intensités constantes par mi-temps (45 + 45 min).
-      const rate1 = (lh + la) * E.lastHtShare / 45;
-      const rate2 = (lh + la) * (1 - E.lastHtShare) / 45;
-      const surv = (t) => (t <= 45 ? Math.exp(-rate1 * t) : Math.exp(-rate1 * 45 - rate2 * (t - 45)));
-      const s = [];
-      let prev = 1;
-      for (const [a, b2] of [[0, 15], [16, 30], [31, 45], [46, 60], [61, 75], [76, 90]]) {
-        const end = b2 === 45 ? 45 : b2;
-        const cur = surv(end);
-        s.push(sel('FT' + a, a + '-' + b2 + ' min', prev - cur));
-        prev = cur;
+      let fg1 = 0;
+      const fr = { '1_1': 0, '1_X': 0, '1_2': 0, '2_1': 0, '2_X': 0, '2_2': 0 };
+      let r2h = 0;
+      let r2a = 0;
+      let r3h = 0;
+      let r3a = 0;
+      let cb1 = 0;
+      let cb2 = 0;
+      let bl = 0;
+      for (let i = 0; i <= n; i++) {
+        for (let j = 0; j <= n; j++) {
+          const pr = ft[i][j];
+          if (!(i + j) || pr < 1e-12) continue;
+          const q = E.sequence(i, j);
+          const res = i > j ? '1' : i === j ? 'X' : '2';
+          fg1 += pr * i / (i + j);
+          fr['1_' + res] += pr * i / (i + j);
+          fr['2_' + res] += pr * j / (i + j);
+          r2h += pr * q.r2h;
+          r2a += pr * q.r2a;
+          r3h += pr * q.r3h;
+          r3a += pr * q.r3a;
+          if (i > j) cb1 += pr * q.al;
+          if (j > i) cb2 += pr * q.hl;
+          bl += pr * q.bl;
+        }
       }
-      s.push(sel('FTN', 'Aucun but', prev));
-      add('firstgoaltime', 'Buts', 'Moment du premier but', s, 'Temps additionnel compté dans la tranche');
+      const fg2 = 1 - none - fg1;
+      add('firstgoal', 'Buts', 'Premier but', [sel('FG1', H, fg1), sel('FG0', 'Aucun but', none), sel('FG2', A, fg2)]);
+      add('lastgoal', 'Buts', 'Dernier but', [sel('LG1', H, fg1), sel('LG0', 'Aucun but', none), sel('LG2', A, fg2)], 'À score égal, chaque équipe a autant de chances de marquer le dernier but que le premier');
+      add('firstres', 'Ordre des buts', 'Premier but + résultat', [
+        sel('FR1_1', H + ' ouvre le score et gagne', fr['1_1']), sel('FR1_X', H + ' ouvre le score, match nul', fr['1_X']), sel('FR1_2', H + ' ouvre le score et perd', fr['1_2']),
+        sel('FR2_2', A + ' ouvre le score et gagne', fr['2_2']), sel('FR2_X', A + ' ouvre le score, match nul', fr['2_X']), sel('FR2_1', A + ' ouvre le score et perd', fr['2_1']),
+        sel('FR0', 'Aucun but', none)
+      ]);
+      const fw = fr['1_1'] + fr['2_2'];
+      add('firstwins', 'Ordre des buts', 'L’équipe qui ouvre le score gagne', [sel('FWY', 'Oui', fw), sel('FWN', 'Non (nul ou remontée)', 1 - none - fw), sel('FW0', 'Aucun but', none)]);
+      add('race2', 'Ordre des buts', 'Premier à 2 buts', [sel('RA2_1', H, r2h), sel('RA2_2', A, r2a), sel('RA2_0', 'Aucune des deux', 1 - r2h - r2a)]);
+      add('race3', 'Ordre des buts', 'Premier à 3 buts', [sel('RA3_1', H, r3h), sel('RA3_2', A, r3a), sel('RA3_0', 'Aucune des deux', 1 - r3h - r3a)]);
+      add('comeback', 'Ordre des buts', 'Gagne après avoir été mené', [sel('CB1', H + ' remonte et gagne', cb1), sel('CB2', A + ' remonte et gagne', cb2)]);
+      add('bothlead', 'Ordre des buts', 'Les deux équipes mènent au score', [sel('BLY', 'Oui', bl), sel('BLN', 'Non', 1 - bl)]);
+    }
+
+    // --- Minutes : intensité des buts minute par minute (mesurée sur ESPN),
+    // temps additionnel compté dans la 45e et la 90e minute.
+    {
+      const T = E.timeProfile(E.lastHtShare);
+      const L = lh + la;
+      const C = T.cum;
+      const yes = (lam) => 1 - Math.exp(-lam);
+      for (const X of [2, 5, 10, 15, 20, 30]) {
+        const p = yes(L * C[X]);
+        add('gb' + X, 'Minutes', 'But dans les ' + X + ' premières minutes', [sel('GB' + X + 'Y', 'Oui', p), sel('GB' + X + 'N', 'Non', 1 - p)], X === 2 ? 'De 0:00 à 1:59' : 'De 0:00 à ' + (X - 1) + ':59');
+      }
+      const ints = [[1, 15], [16, 30], [31, 45], [46, 60], [61, 75], [76, 90]];
+      const gi = [];
+      for (const [a, b2] of ints) {
+        const p = yes(L * (C[b2] - C[a - 1]));
+        gi.push(sel('GI' + a + 'Y', a + '-' + b2 + (b2 === 45 || b2 === 90 ? '+' : '') + ' min : but', p), sel('GI' + a + 'N', a + '-' + b2 + (b2 === 45 || b2 === 90 ? '+' : '') + ' min : pas de but', 1 - p));
+      }
+      add('goalint', 'Minutes', 'But dans chaque tranche de 15 minutes', gi, '« 45+ » et « 90+ » : temps additionnel compris');
+      {
+        const s = [];
+        let prev = 1;
+        for (const [a, b2] of ints) {
+          const cur = Math.exp(-L * C[b2]);
+          s.push(sel('FT' + (a === 1 ? 0 : a), (a === 1 ? 0 : a) + '-' + b2 + (b2 === 45 || b2 === 90 ? '+' : '') + ' min', prev - cur));
+          prev = cur;
+        }
+        s.push(sel('FTN', 'Aucun but', prev));
+        add('firstgoaltime', 'Minutes', 'Moment du premier but', s);
+      }
+      for (const X of [15, 30, 60, 75]) {
+        const c = C[X];
+        const ph = E.poisson(lh * c, n);
+        const pa = E.poisson(la * c, n);
+        let w1 = 0;
+        let d = 0;
+        for (let i = 0; i <= n; i++) for (let j = 0; j <= n; j++) {
+          if (i > j) w1 += ph[i] * pa[j];
+          else if (i === j) d += ph[i] * pa[j];
+        }
+        add('res' + X, 'Minutes', 'Résultat à la ' + X + 'e minute', [sel('R' + X + '_1', H, w1), sel('R' + X + '_X', 'Nul', d), sel('R' + X + '_2', A, 1 - w1 - d)], 'Score après ' + X + ' minutes de jeu');
+      }
+      const late = yes(L * (1 - C[80]));
+      add('late', 'Minutes', 'But après la 80e minute', [sel('GL80Y', 'Oui', late), sel('GL80N', 'Non', 1 - late)], 'De 80:00 à la fin du temps additionnel');
+      const st1 = yes(L * T.st1);
+      const st2 = yes(L * T.st2);
+      add('stoppage', 'Minutes', 'But dans le temps additionnel', [sel('GST1Y', '1re mi-temps : oui', st1), sel('GST1N', '1re mi-temps : non', 1 - st1), sel('GST2Y', '2e mi-temps : oui', st2), sel('GST2N', '2e mi-temps : non', 1 - st2)]);
+      add('teamearly', 'Minutes', 'Équipe marque dans les 15 premières minutes', [sel('T15_1Y', H + ' : oui', yes(lh * C[15])), sel('T15_1N', H + ' : non', 1 - yes(lh * C[15])), sel('T15_2Y', A + ' : oui', yes(la * C[15])), sel('T15_2N', A + ' : non', 1 - yes(la * C[15]))]);
+      add('teamlate', 'Minutes', 'Équipe marque après la 75e minute', [sel('T76_1Y', H + ' : oui', yes(lh * (1 - C[75]))), sel('T76_1N', H + ' : non', 1 - yes(lh * (1 - C[75]))), sel('T76_2Y', A + ' : oui', yes(la * (1 - C[75]))), sel('T76_2N', A + ' : non', 1 - yes(la * (1 - C[75])))]);
+      // Types de buts (parts mesurées sur ESPN).
+      const G = E.GOAL_TYPES;
+      const ty = [];
+      for (const [k, lbl] of [['PG', 'But sur penalty'], ['OG', 'But contre son camp'], ['HD', 'But de la tête']]) {
+        const p = yes(L * G[k]);
+        ty.push(sel(k + 'Y', lbl + ' : oui', p), sel(k + 'N', lbl + ' : non', 1 - p));
+      }
+      add('goaltype', 'Buts', 'Types de buts dans le match', ty, 'Au moins un but de ce type ; tête : estimation, à vérifier soi-même');
     }
     return M;
   };
@@ -715,6 +933,11 @@
     '1x2': 1, dc: 0.9, btts: 1, total: 1, it1: 0.8, it2: 0.8, dnb: 0.85, httotal: 0.75, ah: 0.7, teamscore: 0.8, wineither: 0.6
   };
 
+  const CANON = {
+    'it1O0.5': 'S1Y', 'it1U0.5': 'S1N', 'it2O0.5': 'S2Y', 'it2U0.5': 'S2N',
+    'AH1+0.5': '1X', 'AH2+0.5': 'X2', 'AH1-0.5': '1', 'AH2-0.5': '2', 'HAH1-0.5': 'H1', 'HAH2-0.5': 'H2', 'HAH1+0.5': 'H1X', 'HAH2+0.5': 'HX2'
+  };
+
   E.picks = function (res) {
     const all = [];
     for (const mk of res.markets) {
@@ -734,9 +957,14 @@
     all.sort((a, b) => b.score - a.score);
     const out = [];
     const used = new Set();
+    const chosen = new Set();
     for (const c of all) {
+      // Paris identiques sous deux noms (ex. « Total individuel 1 : plus de 0,5 » = « Domicile marque »).
+      const canon = CANON[c.key] || c.key;
+      if (chosen.has(canon)) continue;
       if (used.has(c.marketId) && out.length < 4) continue;
       used.add(c.marketId);
+      chosen.add(canon);
       c.level = c.p >= 0.75 ? 'Très probable' : c.p >= 0.62 ? 'Probable' : 'Risqué';
       out.push(c);
       if (out.length >= 6) break;
@@ -752,7 +980,90 @@
    * r = { hg, ag, hthg?, htag? }. Renvoie 'won', 'lost', 'push', 'half-won',
    * 'half-lost' ou null si la sélection n'est pas vérifiable automatiquement.
    */
+  /**
+   * Paris liés aux minutes et à l'ordre des buts.
+   * r.goals = [{ min, extra?, side: 'h' | 'a', type?: 'PG' | 'OG' | 'HD' | 'FK' | '' }]
+   * (minute ESPN : « 15' » = de 14:00 à 14:59 ; temps additionnel dans 45 et 90).
+   */
+  function settleGoals(key, r) {
+    const h = r.hg;
+    const a = r.ag;
+    let goals = r.goals;
+    if (!Array.isArray(goals)) {
+      if (h + a !== 0) return null;
+      goals = [];
+    }
+    if (goals.length !== h + a) return null;
+    goals = goals.slice().sort((x, y) => x.min - y.min || (x.extra || 0) - (y.extra || 0));
+    const ok = (c) => (c ? 'won' : 'lost');
+    const yn = (c, k) => ok(k === 'Y' ? c : !c);
+    const any = (f) => goals.some(f);
+    let m;
+    if ((m = key.match(/^GB(\d+)([YN])$/))) return yn(any((g) => g.min <= +m[1]), m[2]);
+    if ((m = key.match(/^GI(\d+)([YN])$/))) return yn(any((g) => g.min >= +m[1] && g.min <= +m[1] + 14), m[2]);
+    if ((m = key.match(/^FT(\d+|N)$/))) {
+      if (m[1] === 'N') return ok(!goals.length);
+      if (!goals.length) return 'lost';
+      const lo = +m[1] === 0 ? 1 : +m[1];
+      return ok(goals[0].min >= lo && goals[0].min <= lo + (lo === 1 ? 14 : 14));
+    }
+    if ((m = key.match(/^R(\d+)_([1X2])$/))) {
+      const X = +m[1];
+      const gh = goals.filter((g) => g.min <= X && g.side === 'h').length;
+      const ga = goals.filter((g) => g.min <= X && g.side === 'a').length;
+      return ok((gh > ga ? '1' : gh === ga ? 'X' : '2') === m[2]);
+    }
+    if ((m = key.match(/^GL(\d+)([YN])$/))) return yn(any((g) => g.min > +m[1]), m[2]);
+    if ((m = key.match(/^GST([12])([YN])$/))) {
+      if (goals.some((g) => g.extra == null && (g.min === 45 || g.min === 90))) return null;
+      const base = m[1] === '1' ? 45 : 90;
+      return yn(any((g) => g.min === base && g.extra > 0), m[2]);
+    }
+    if ((m = key.match(/^T(15|76)_([12])([YN])$/))) {
+      const side = m[2] === '1' ? 'h' : 'a';
+      return yn(any((g) => g.side === side && (m[1] === '15' ? g.min <= 15 : g.min >= 76)), m[3]);
+    }
+    if ((m = key.match(/^(PG|OG)([YN])$/))) {
+      if (goals.length && goals.every((g) => g.type == null)) return null;
+      return yn(any((g) => g.type === m[1]), m[2]);
+    }
+    const first = goals[0] ? goals[0].side : null;
+    const last = goals.length ? goals[goals.length - 1].side : null;
+    const res = h > a ? '1' : h === a ? 'X' : '2';
+    if ((m = key.match(/^([FL])G([012])$/))) {
+      const sd = m[1] === 'F' ? first : last;
+      return ok(m[2] === '0' ? !sd : sd === (m[2] === '1' ? 'h' : 'a'));
+    }
+    if (key === 'FR0') return ok(!first);
+    if ((m = key.match(/^FR([12])_([1X2])$/))) return ok(first === (m[1] === '1' ? 'h' : 'a') && res === m[2]);
+    if (key === 'FW0') return ok(!first);
+    if (key === 'FWY' || key === 'FWN') {
+      if (!first) return 'lost';
+      const won = (first === 'h' && res === '1') || (first === 'a' && res === '2');
+      return ok(key === 'FWY' ? won : !won);
+    }
+    // Rejoue le match but par but.
+    let x = 0;
+    let y = 0;
+    let hl = false;
+    let al = false;
+    const race = { 2: null, 3: null };
+    for (const g of goals) {
+      if (g.side === 'h') x++;
+      else y++;
+      if (x > y) hl = true;
+      if (y > x) al = true;
+      for (const k of [2, 3]) if (!race[k]) race[k] = x === k ? '1' : y === k ? '2' : null;
+    }
+    if ((m = key.match(/^RA([23])_([012])$/))) return ok((race[m[1]] || '0') === m[2]);
+    if (key === 'CB1') return ok(res === '1' && al);
+    if (key === 'CB2') return ok(res === '2' && hl);
+    if (key === 'BLY' || key === 'BLN') return ok((hl && al) === (key === 'BLY'));
+    return null;
+  }
+
   E.settle = function (key, r) {
+    if (P.Stats && P.Stats.isKey(key)) return P.Stats.settle(key, r);
     const h = r.hg;
     const a = r.ag;
     if (!isFinite(h) || !isFinite(a)) return null;
@@ -770,7 +1081,21 @@
       E2Y: h >= 2 && a >= 2, E2N: !(h >= 2 && a >= 2), FH0: t === 0
     };
     if (key in simple) return ok(simple[key]);
+    if (/^(GB\d|GI\d|FT|R\d|GL\d|GST|T15_|T76_|FG|LG|FR|FW|RA\d|CB\d|BL[YN]$|(PG|OG)[YN]$)/.test(key)) return settleGoals(key, r);
     if ((m = key.match(/^([OU])(\d+\.5)$/))) return ok(cmp(t, m[1], +m[2]));
+    if (key === 'CSO') return ok(h > 5 || a > 5);
+    if ((m = key.match(/^TG([12])_(\d)$/))) {
+      const g = m[1] === '1' ? h : a;
+      return ok(+m[2] === 4 ? g >= 4 : g === +m[2]);
+    }
+    if (/^CG/.test(key)) {
+      const groups = {
+        CG1: (h === 1 && a === 0) || (h === 2 && a === 0) || (h === 2 && a === 1), CG2: h === 3 && a <= 2, CG3: h - a >= 4,
+        CGX: h === a && h <= 1, CGX2: h === a && h >= 2,
+        CG4: (h === 0 && a === 1) || (h === 0 && a === 2) || (h === 1 && a === 2), CG5: a === 3 && h <= 2, CG6: a - h >= 4
+      };
+      return key in groups ? ok(groups[key]) : null;
+    }
     if ((m = key.match(/^it([12])([OU])(\d+\.5)$/))) return ok(cmp(m[1] === '1' ? h : a, m[2], +m[3]));
     if ((m = key.match(/^EX(\d)$/))) return ok(+m[1] === 6 ? t >= 6 : t === +m[1]);
     if ((m = key.match(/^CS(\d+)-(\d+)$/))) return ok(h === +m[1] && a === +m[2]);
@@ -830,6 +1155,11 @@
     if ((m = key.match(/^S([OU])(\d+\.5)$/))) return ok(cmp(st, m[1], +m[2]));
     if ((m = key.match(/^S([12])([OU])(\d+\.5)$/))) return ok(cmp(half[m[1]][1], m[2], +m[3]));
     if ((m = key.match(/^HCS(\d+)-(\d+)$/))) return ok(hh === +m[1] && ha === +m[2]);
+    if (key === 'HCSO') return ok(hh > 3 || ha > 3);
+    if ((m = key.match(/^SCS(\d+)-(\d+)$/))) return ok(sh === +m[1] && sa === +m[2]);
+    if (key === 'SCSO') return ok(sh > 3 || sa > 3);
+    if ((m = key.match(/^HEX(\d)$/))) return ok(+m[1] === 3 ? ht >= 3 : ht === +m[1]);
+    if ((m = key.match(/^HB2([YN])([YN])$/))) return ok((hh > 0 && ha > 0) === (m[1] === 'Y') && (sh > 0 && sa > 0) === (m[2] === 'Y'));
     if ((m = key.match(/^HAH([12])([+-]\d+\.5)$/))) return ok((m[1] === '1' ? hh - ha : ha - hh) + +m[2] > 0);
     if ((m = key.match(/^HF([12X])([12X])$/))) return ok(res(hh, ha) === m[1] && res(h, a) === m[2]);
     if ((m = key.match(/^TH([12])([12X])$/))) {
