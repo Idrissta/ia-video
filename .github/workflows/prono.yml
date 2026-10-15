@@ -29,3 +29,15 @@ jobs:
           node-version: 22
       - name: Sources de données (ESPN, football-data…)
         run: node tools/prono-probe.js
+
+  backtest:
+    name: Calibration et test du modèle (vrais matchs)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Test sur 12 championnats × 5 saisons (football-data.co.uk)
+        run: node tools/prono-backtest.js
