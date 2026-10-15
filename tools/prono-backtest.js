@@ -240,7 +240,7 @@ function pickReport(samples, params, withOdds) {
       odds['U2.5'] = s.m.ou[1];
     }
     const p = Object.assign({}, params, { homeAvg: s.homeAvg, awayAvg: s.awayAvg });
-    const res = E.analyze(Object.assign({}, s.input, { odds, names: { home: 'A', away: 'B' } }), p);
+    const res = E.analyze(Object.assign({}, s.input, { refOdds: odds, names: { home: 'A', away: 'B' } }), p);
     const main = res.picks.main;
     if (!main) continue;
     const won = settle(main.key, s.m);

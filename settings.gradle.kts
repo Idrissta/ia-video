@@ -18,3 +18,4 @@ rootProject.name = "IaVideo"
 include(":app")
 include(":film")
 include(":velo")
+include(":prono")

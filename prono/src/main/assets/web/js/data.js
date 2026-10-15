@@ -20,6 +20,7 @@
   D.wrap = (url) => (D.native ? '/net/?u=' + encodeURIComponent(url) : url);
 
   const cache = new Map();
+  D.clearCache = () => cache.clear();
 
   /** GET JSON avec cache mémoire (ttl en secondes), délai maximal et nouvel essai. */
   D.get = async function (url, ttl) {
@@ -155,13 +156,14 @@
    * ESPN découpe ses journées selon l'heure de la côte Est des États-Unis :
    * on interroge les deux journées ESPN qui recouvrent la journée locale.
    */
-  D.day = async function (date) {
+  D.day = async function (date, force) {
     const day = new Date(date.getFullYear(), date.getMonth(), date.getDate());
     const offsetMin = -day.getTimezoneOffset();
     const shift = offsetMin > -300 ? -1 : 1;
     const other = new Date(day.getTime() + shift * 864e5);
     const ttl = sameDay(day, new Date()) ? 90 : 900;
     const urls = [day, other].map((d) => ESPN + '/all/scoreboard?dates=' + ymd(d) + '&limit=1000');
+    if (force) urls.forEach((u) => cache.delete(u));
     const res = await Promise.allSettled(urls.map((u) => D.get(u, ttl)));
     const seen = new Set();
     const out = [];
@@ -291,10 +293,14 @@
     let odds = null;
     const pc = j.pickcenter && j.pickcenter[0];
     odds = D.parseOdds(pc) || D.parseOdds(j.odds && j.odds[0]);
+    const known = (P.Leagues && P.Leagues.byId[String(lg.id || '')]) || null;
     return {
       id: String(eventId || (j.header && j.header.id)),
       date,
-      league: { id: String(lg.id || ''), name: lg.name || lg.abbreviation || '' },
+      league: {
+        id: String(lg.id || ''), espnName: lg.name || '',
+        name: (known && known.fr) || lg.name || lg.abbreviation || '', flag: (known && known.flag) || '⚽'
+      },
       state: st.state || 'pre',
       completed: !!st.completed,
       detail: st.shortDetail || st.detail || '',
@@ -374,7 +380,7 @@
   D.match = async function (eventId) {
     const j = await D.get(ESPN + '/all/summary?event=' + encodeURIComponent(eventId), 300);
     const m = D.parseSummary(j, eventId);
-    const ctx = { leagueName: m.league.name };
+    const ctx = { leagueName: m.league.espnName };
     const before = m.completed ? m.date : new Date(Date.now() + 864e5);
     const [hh, ah] = await Promise.all([
       D.history(m.home.id, ctx).catch(() => []),
@@ -386,15 +392,15 @@
   };
 
   /** Entrée du moteur à partir des données d'un match. */
-  D.engineInput = function (m, extraOdds) {
-    const odds = Object.assign({}, extraOdds || {});
+  D.engineInput = function (m, refOdds, userOdds) {
     return {
+      refOdds: refOdds || {},
+      odds: userOdds || {},
       neutral: m.neutral,
       names: { home: m.home.short || m.home.name, away: m.away.short || m.away.name },
       home: { matches: m.home.recent && m.home.recent.length ? m.home.recent : m.home.games },
       away: { matches: m.away.recent && m.away.recent.length ? m.away.recent : m.away.games },
-      h2h: m.h2h,
-      odds
+      h2h: m.h2h
     };
   };
 

@@ -33,7 +33,7 @@ const pct = (x) => (100 * x).toFixed(0) + ' %';
     for (const e of pre) {
       try {
         const m = await P.Data.match(e.id);
-        const res = P.Engine.analyze(P.Data.engineInput(m, m.odds || {}));
+        const res = P.Engine.analyze(P.Data.engineInput(m, m.odds || {}, {}));
         const main = res.picks.main;
         console.log('  ' + e.league.name + ' · ' + m.home.name + ' – ' + m.away.name + ' : forme ' + m.home.games.length + '/' + m.away.games.length +
           ' (historique ' + m.home.recent.length + '/' + m.away.recent.length + ')' +

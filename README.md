@@ -1,9 +1,10 @@
 # IA Vidéo — applications Android
 
-Ce dépôt contient trois applications Android compilées automatiquement par GitHub Actions :
+Ce dépôt contient quatre applications Android compilées automatiquement par GitHub Actions :
 
 | Application | Dossier | Description |
 | --- | --- | --- |
+| **PronoFoot** | `prono/` | Pronostics de football : forme des équipes, confrontations directes et cotes de référence, 49 marchés de paris (1X2, buts, handicaps, mi-temps, score exact…). |
 | **Vélo Champion** | `velo/` | Jeu de course cycliste en 3D : 5 niveaux de 10 étapes contre 10 adversaires, vélos plus rapides à acheter. |
 | **CINÉ-GENESIS** | `film/` | Studio de création IA : images 4K, vidéos 4K (Kling 3.0, LTX-2.3, Veo 3.1…) et films complets montés en 4K sur le téléphone. |
 | **Nova Graph** | `app/` | Calculatrice graphique hors ligne. |
@@ -19,6 +20,82 @@ Ce dépôt contient trois applications Android compilées automatiquement par Gi
 Ouvrez le lien depuis le téléphone, puis le fichier `.apk`, et autorisez l'installation depuis cette source si Android le demande
 (Android 8.0 ou plus récent). Les APK sont aussi disponibles comme artefacts de chaque exécution (onglet **Actions**),
 et un tag `v*` crée une *Release* versionnée.
+
+---
+
+# PronoFoot — pronostics de football
+
+Analyse des matchs du jour (toutes compétitions couvertes par ESPN : grands championnats européens, compétitions
+africaines, Amérique, Asie…) et calcul de la probabilité de chaque pari.
+
+### Télécharger
+
+Le workflow **APK PronoFoot** publie à chaque push la version [**prono-latest**](../../releases/tag/prono-latest) :
+
+- `PronoFoot.apk` — `https://github.com/Idrissta/ia-video/releases/download/prono-latest/PronoFoot.apk`
+
+Android 8.0 ou plus récent, connexion Internet requise (aucune clé ni compte à créer).
+
+### Ce que fait l'application
+
+- **Matchs** : liste des matchs d'une journée (d'avant-hier à J+6), regroupés par compétition, avec recherche,
+  filtre « grands championnats » / « tous » / « à venir », score en direct et cotes 1X2 de référence.
+- **Pronostic** : pour chaque match, le pari le plus sûr (ex. « Plus de 1,5 but », « Les deux équipes marquent »),
+  5 autres pronostics classés, les paris *value*, la probabilité 1X2, les buts attendus et un indice de confiance.
+- **Paris** : **49 marchés et plus de 300 paris** inspirés de 1xBet — 1X2, double chance, remboursé si nul,
+  les deux équipes marquent, totaux (0,5 à 6,5), totaux asiatiques, totaux par équipe, nombre exact de buts,
+  pair/impair, handicaps européens et asiatiques (lignes .25/.75 comprises), écart, résultat + total,
+  double chance + total, gagne à zéro, score exact, 1re et 2e mi-temps, mi-temps/fin de match, mi-temps la plus
+  prolifique, premier but, moment du premier but… Pour chaque pari : probabilité et **cote juste**.
+- **Cotes 1xBet** : saisir la cote proposée par votre bookmaker à côté d'un pari affiche aussitôt sa
+  **value** (espérance de gain) ; les paris où la cote est supérieure à la cote juste sont mis en avant.
+- **Forme** et **Face-à-face** : les 5 derniers matchs de chaque équipe et leurs 5 dernières confrontations.
+- **Suivis** : historique des pronostics suivis, vérifiés automatiquement après le match (taux de réussite).
+- **Analyse manuelle** : pour un match absent de la liste, saisir les 5 derniers résultats de chaque équipe,
+  les 5 confrontations et, si possible, les cotes 1X2.
+
+### La méthode
+
+1. **Données** (API publique ESPN) : 5 derniers matchs de chaque équipe, 5 dernières confrontations directes,
+   classement et cotes de référence, complétés par jusqu'à **20 matchs récents** par équipe.
+2. **Force des équipes** : attaque et défense de chaque équipe, à domicile et à l'extérieur, avec des matchs
+   récents plus importants que les anciens et un retour vers la moyenne quand il y a peu de matchs.
+3. **Confrontations directes** : petit ajustement selon les 5 derniers face-à-face (les plus récents comptent plus).
+4. **Buts attendus → scores** : loi de Poisson corrigée (Dixon-Coles) pour chaque score, puis chaque pari est
+   calculé à partir de ces probabilités ; mi-temps : deux périodes modélisées séparément.
+5. **Cotes de référence** : la marge du bookmaker est retirée, puis le marché est combiné au modèle
+   (réglage *Combiner avec les cotes de référence*).
+
+Le modèle a été réglé puis **testé sur 7 943 matchs réels jamais vus** (12 championnats, données
+[football-data.co.uk](https://www.football-data.co.uk)) : `node tools/prono-backtest.js`.
+
+| Mesure | Résultat |
+| --- | --- |
+| Pronostic principal gagnant | 78 % |
+| Bon résultat 1X2 — moyennes du championnat seules | 43 % |
+| Bon résultat 1X2 — 5 derniers matchs + face-à-face | 49 % |
+| Bon résultat 1X2 — 20 derniers matchs + face-à-face | 51 % |
+| Bon résultat 1X2 — avec les cotes de référence | 53 % |
+| Calibration : paris annoncés à 83 % | réalisés à 83 % |
+
+Aucune méthode ne gagne à tous les coups : un pari annoncé à 80 % perd en moyenne une fois sur cinq.
+Les paris sportifs sont réservés aux plus de 18 ans ; ne misez que ce que vous pouvez vous permettre de perdre.
+
+### Architecture
+
+```
+prono/src/main/
+├── java/com/idrissta/prono/MainActivity.java   coque native : WebView, relais réseau vers l'API ESPN, partage, retour
+└── assets/web/
+    ├── index.html, css/app.css   interface (thème sombre)
+    ├── js/engine.js    modèle : forces des équipes, Dixon-Coles, marge des cotes, 49 marchés, value, règlement
+    ├── js/data.js      données ESPN : matchs du jour, résumé d'un match, historiques, résultats
+    ├── js/leagues.js   noms français et ordre des compétitions
+    └── js/ui.js        écrans, saisie des cotes, suivis, analyse manuelle, réglages
+```
+
+Tests hors ligne (calculs, règlement de tous les paris, lecture des données) : `node tools/test-prono.js`.
+Essai sur les vrais matchs à venir : `node tools/prono-e2e.js`.
 
 ---
 

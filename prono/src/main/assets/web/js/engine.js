@@ -300,11 +300,14 @@
     let lh = base.lh;
     let la = base.la;
     let market = null;
+    // refOdds : cotes de référence (marché) combinées au modèle ;
+    // odds : cotes de l'utilisateur (1xBet…), servent uniquement au calcul de la value.
     const odds = input.odds || {};
-    if (odds['1'] > 1 && odds.X > 1 && odds['2'] > 1) {
-      const f = E.fairProbs([odds['1'], odds.X, odds['2']]);
+    const ref = input.refOdds || {};
+    if (ref['1'] > 1 && ref.X > 1 && ref['2'] > 1) {
+      const f = E.fairProbs([ref['1'], ref.X, ref['2']]);
       let pOver = null;
-      if (odds['O2.5'] > 1 && odds['U2.5'] > 1) pOver = E.fairProbs([odds['O2.5'], odds['U2.5']])[0];
+      if (ref['O2.5'] > 1 && ref['U2.5'] > 1) pOver = E.fairProbs([ref['O2.5'], ref['U2.5']])[0];
       if (f) {
         market = E.marketLambdas(f[0], f[1], f[2], pOver, p.rho);
         market.probs = { h: f[0], d: f[1], a: f[2], o25: pOver };
@@ -752,26 +755,40 @@
   E.settle = function (key, r) {
     const h = r.hg;
     const a = r.ag;
+    if (!isFinite(h) || !isFinite(a)) return null;
     const t = h + a;
-    const hh = r.hthg;
-    const ha = r.htag;
-    const ht = hh + ha;
     const ok = (c) => (c ? 'won' : 'lost');
+    const res = (x, y) => (x > y ? '1' : x === y ? 'X' : '2');
+    const dc = (k, x, y) => (k === '1X' ? x >= y : k === '12' ? x !== y : x <= y);
+    const cmp = (v, op, L) => (op === 'O' ? v > L : v < L);
+    const btts = h > 0 && a > 0;
     let m;
     const simple = {
       '1': h > a, X: h === a, '2': h < a, '1X': h >= a, X2: h <= a, '12': h !== a,
-      BTTS_Y: h > 0 && a > 0, BTTS_N: !(h > 0 && a > 0), S1Y: h > 0, S1N: h === 0, S2Y: a > 0, S2N: a === 0,
+      BTTS_Y: btts, BTTS_N: !btts, S1Y: h > 0, S1N: h === 0, S2Y: a > 0, S2N: a === 0,
       EVEN: t % 2 === 0, ODD: t % 2 === 1, WTN1: h > a && a === 0, WTN2: a > h && h === 0, CS1: a === 0, CS2: h === 0,
-      E2Y: h >= 2 && a >= 2, E2N: !(h >= 2 && a >= 2)
+      E2Y: h >= 2 && a >= 2, E2N: !(h >= 2 && a >= 2), FH0: t === 0
     };
     if (key in simple) return ok(simple[key]);
-    if ((m = key.match(/^([OU])(\d+\.5)$/))) return ok(m[1] === 'O' ? t > +m[2] : t < +m[2]);
-    if ((m = key.match(/^it([12])([OU])(\d+\.5)$/))) {
-      const g = m[1] === '1' ? h : a;
-      return ok(m[2] === 'O' ? g > +m[3] : g < +m[3]);
-    }
+    if ((m = key.match(/^([OU])(\d+\.5)$/))) return ok(cmp(t, m[1], +m[2]));
+    if ((m = key.match(/^it([12])([OU])(\d+\.5)$/))) return ok(cmp(m[1] === '1' ? h : a, m[2], +m[3]));
     if ((m = key.match(/^EX(\d)$/))) return ok(+m[1] === 6 ? t >= 6 : t === +m[1]);
     if ((m = key.match(/^CS(\d+)-(\d+)$/))) return ok(h === +m[1] && a === +m[2]);
+    if ((m = key.match(/^T3([OEU])(\d+)$/))) return ok(m[1] === 'O' ? t > +m[2] : m[1] === 'E' ? t === +m[2] : t < +m[2]);
+    if ((m = key.match(/^MB(\d+)-(\d+)$/))) return ok(t >= +m[1] && t <= +m[2]);
+    if ((m = key.match(/^EH([12X])([+-]\d+)$/))) {
+      const v = h + +m[2];
+      return ok(m[1] === '1' ? v > a : m[1] === 'X' ? v === a : v < a);
+    }
+    if ((m = key.match(/^MG(\d)$/))) {
+      const d = h - a;
+      return ok([d === 1, d === 2, d >= 3, d === 0, d === -1, d === -2, d <= -3][+m[1]]);
+    }
+    if ((m = key.match(/^RT([1X2])([OU])(\d+\.5)$/))) return ok(res(h, a) === m[1] && cmp(t, m[2], +m[3]));
+    if ((m = key.match(/^RB([1X2])([YN])$/))) return ok(res(h, a) === m[1] && btts === (m[2] === 'Y'));
+    if ((m = key.match(/^DT(1X|12|X2)([OU])(\d+\.5)$/))) return ok(dc(m[1], h, a) && cmp(t, m[2], +m[3]));
+    if ((m = key.match(/^DB(1X|12|X2)([YN])$/))) return ok(dc(m[1], h, a) && btts === (m[2] === 'Y'));
+    if ((m = key.match(/^B([TN])([OU])(\d+\.5)$/))) return ok(btts === (m[1] === 'T') && cmp(t, m[2], +m[3]));
     if (key === 'DNB1' || key === 'DNB2') return h === a ? 'push' : ok(key === 'DNB1' ? h > a : a > h);
     if ((m = key.match(/^AH([12])([+-][\d.]+)$/) || key.match(/^(AO|AU)()([\d.]+)$/))) {
       if (m[1] === '1' || m[1] === '2') m = ['', 'AH', m[1], m[2]];
@@ -788,15 +805,37 @@
       if (parts.length === 2) return score === 2 ? 'won' : score === 1 ? 'half-won' : score === 0 ? 'push' : score === -1 ? 'half-lost' : 'lost';
       return score > 0 ? 'won' : score < 0 ? 'lost' : 'push';
     }
-    if (!isFinite(ht)) return null;
-    const htSimple = { H1: hh > ha, HX: hh === ha, H2: hh < ha, H1X: hh >= ha, HX2: hh <= ha, H12: hh !== ha, HBY: hh > 0 && ha > 0, HBN: !(hh > 0 && ha > 0) };
+
+    // Paris liés aux mi-temps : il faut le score à la pause.
+    const hh = r.hthg;
+    const ha = r.htag;
+    if (!isFinite(hh) || !isFinite(ha) || hh > h || ha > a) return null;
+    const ht = hh + ha;
+    const sh = h - hh;
+    const sa = a - ha;
+    const st = sh + sa;
+    const half = { 1: [hh, sh], 2: [ha, sa] };
+    const htSimple = {
+      H1: hh > ha, HX: hh === ha, H2: hh < ha, H1X: hh >= ha, HX2: hh <= ha, H12: hh !== ha, HBY: hh > 0 && ha > 0, HBN: !(hh > 0 && ha > 0),
+      HEVEN: ht % 2 === 0, HODD: ht % 2 === 1,
+      S1: sh > sa, SX: sh === sa, S2: sh < sa, SBY: sh > 0 && sa > 0, SBN: !(sh > 0 && sa > 0),
+      HSH1: ht > st, HSH2: st > ht, HSHX: ht === st, BHY: ht > 0 && st > 0, BHN: !(ht > 0 && st > 0),
+      T1BH: hh > 0 && sh > 0, T2BH: ha > 0 && sa > 0, WE1: hh > ha || sh > sa, WE2: ha > hh || sa > sh,
+      WB1: hh > ha && sh > sa, WB2: ha > hh && sa > sh, BBY: hh > 0 && ha > 0 && sh > 0 && sa > 0, BBN: !(hh > 0 && ha > 0 && sh > 0 && sa > 0),
+      FH1: ht > 0, FH2: ht === 0 && t > 0
+    };
     if (key in htSimple) return ok(htSimple[key]);
-    if ((m = key.match(/^H([OU])(\d+\.5)$/))) return ok(m[1] === 'O' ? ht > +m[2] : ht < +m[2]);
-    if ((m = key.match(/^HF([12X])([12X])$/))) {
-      const rr = (x, y) => (x > y ? '1' : x === y ? 'X' : '2');
-      return ok(rr(hh, ha) === m[1] && rr(h, a) === m[2]);
+    if ((m = key.match(/^H([OU])(\d+\.5)$/))) return ok(cmp(ht, m[1], +m[2]));
+    if ((m = key.match(/^H([12])([OU])(\d+\.5)$/))) return ok(cmp(half[m[1]][0], m[2], +m[3]));
+    if ((m = key.match(/^S([OU])(\d+\.5)$/))) return ok(cmp(st, m[1], +m[2]));
+    if ((m = key.match(/^S([12])([OU])(\d+\.5)$/))) return ok(cmp(half[m[1]][1], m[2], +m[3]));
+    if ((m = key.match(/^HCS(\d+)-(\d+)$/))) return ok(hh === +m[1] && ha === +m[2]);
+    if ((m = key.match(/^HAH([12])([+-]\d+\.5)$/))) return ok((m[1] === '1' ? hh - ha : ha - hh) + +m[2] > 0);
+    if ((m = key.match(/^HF([12X])([12X])$/))) return ok(res(hh, ha) === m[1] && res(h, a) === m[2]);
+    if ((m = key.match(/^TH([12])([12X])$/))) {
+      const [g1, g2] = half[m[1]];
+      return ok(m[2] === '1' ? g1 > g2 : m[2] === '2' ? g2 > g1 : g1 === g2);
     }
-    if (key === 'BHY' || key === 'BHN') return ok((ht > 0 && t - ht > 0) === (key === 'BHY'));
     return null;
   };
 
