@@ -115,6 +115,35 @@ const ymd = (d) => d.toISOString().slice(0, 10).replace(/-/g, '');
     console.log(slug.padEnd(18) + ' → ' + r.status + ' events=' + n + ' ' + name);
   }
 
+  console.log('\n## 7. Correspondance ligue ↔ match dans /all et résumé sans ligue');
+  const all = await get(ESPN + '/all/scoreboard?dates=' + ymd(sat) + '&limit=1000');
+  const aj = all.json || {};
+  console.log('clés /all : ' + Object.keys(aj).join(','));
+  if (aj.leagues) {
+    console.log('leagues[] : ' + aj.leagues.length + ' ex: ' + aj.leagues.slice(0, 6).map((l) => l.id + '=' + l.slug + '|' + l.name + '|' + l.abbreviation).join(' ; '));
+    console.log(brief(aj.leagues[0], '$.leagues[0]', 3, 25));
+  }
+  const evs2 = aj.events || [];
+  console.log('uid ex : ' + evs2.slice(0, 3).map((e) => e.uid + ' note=' + e.competitions[0].altGameNote).join(' ; '));
+  const small = evs2.find((e) => /nga|rsa|caf|nigeria|south africa/i.test(JSON.stringify(e.season) + e.competitions[0].altGameNote)) || evs2[evs2.length - 1];
+  for (const ev of [evs2[0], small].filter(Boolean)) {
+    for (const lg of ['all', 'soccer']) {
+      const s = await get(ESPN + '/' + lg + '/summary?event=' + ev.id);
+      const j = s.json || {};
+      const ss = j.seasonseries && j.seasonseries[0];
+      console.log('/' + lg + '/summary ' + ev.id + ' ' + ev.name + ' → ' + s.status + ' last5=' + (j.lastFiveGames ? j.lastFiveGames.map((t) => t.events.length).join('/') : '-') +
+        ' h2h=' + (ss ? ss.events.length + ' (' + ss.shortSummary + ')' : '-') + ' cotes=' + (j.pickcenter ? j.pickcenter.length : 0) + ' classement=' + (j.standings ? 'oui' : 'non'));
+    }
+  }
+  const sm = await get(ESPN + '/all/summary?event=' + (evs2[0] && evs2[0].id));
+  const sj = sm.json || {};
+  if (sj.standings) {
+    const e = sj.standings.groups && sj.standings.groups[0] && sj.standings.groups[0].standings.entries[0];
+    if (e) console.log('stats classement : ' + e.stats.map((x) => x.name + '=' + x.displayValue).join(', '));
+  }
+  if (sj.seasonseries) console.log(brief(sj.seasonseries[0].events[0], '$.h2h[0]', 4, 20));
+  if (sj.lastFiveGames) console.log(brief(sj.lastFiveGames[0].events[0], '$.last5[0]', 3, 30));
+
   console.log('\n## 6. Données historiques (football-data.co.uk)');
   for (const f of ['mmz4281/2526/E0.csv', 'mmz4281/2526/F1.csv', 'new/BRA.csv']) {
     const r = await get('https://www.football-data.co.uk/' + f);
