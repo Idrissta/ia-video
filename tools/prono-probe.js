@@ -59,9 +59,27 @@ const ymd = (d) => d.toISOString().slice(0, 10).replace(/-/g, '');
   const past = new Date(now.getTime() - 8 * 864e5);
   const future = new Date(now.getTime() + 6 * 864e5);
 
-  // 1. ESPN : tableau des matchs d'une ligue sur une période.
-  const sb = await get(ESPN + '/eng.1/scoreboard?dates=' + ymd(past) + '-' + ymd(future) + '&limit=200');
-  show('ESPN scoreboard eng.1 (période)', sb, 7, 160);
+  // 1. ESPN : tableau des matchs (plusieurs formes d'appel).
+  const variants = [
+    ESPN + '/eng.1/scoreboard',
+    ESPN + '/eng.1/scoreboard?dates=' + ymd(past),
+    ESPN + '/eng.1/scoreboard?dates=' + ymd(past) + '-' + ymd(future),
+    ESPN + '/eng.1/scoreboard?dates=' + ymd(new Date('2026-10-04')),
+    ESPN + '/eng.1/scoreboard?dates=20261003-20261005',
+    ESPN + '/eng.1/scoreboard?dates=2026',
+    'https://site.web.api.espn.com/apis/site/v2/sports/soccer/eng.1/scoreboard?dates=20261004',
+    ESPN + '/all/scoreboard?dates=20261004',
+    ESPN + '/uefa.champions/scoreboard?dates=20261001'
+  ];
+  let sb = null;
+  for (const u of variants) {
+    const r = await get(u);
+    const n = r.json && r.json.events ? r.json.events.length : '-';
+    console.log('ESPN ' + u.replace(ESPN, '') + ' → HTTP ' + r.status + ' events=' + n + (r.json && r.json.message ? ' ' + r.json.message : ''));
+    if (!sb && r.json && r.json.events && r.json.events.some((e) => e.status && e.status.type && e.status.type.completed)) sb = r;
+  }
+  if (!sb) sb = { json: { events: [] }, status: 0, ms: 0, body: '' };
+  else show('ESPN scoreboard retenu', sb, 7, 140);
   const events = (sb.json && sb.json.events) || [];
   const done = events.find((e) => e.status && e.status.type && e.status.type.completed);
   const next = events.find((e) => e.status && e.status.type && e.status.type.state === 'pre');
@@ -94,7 +112,7 @@ const ymd = (d) => d.toISOString().slice(0, 10).replace(/-/g, '');
     'cmr.1', 'caf.champions', 'caf.nations', 'fifa.world', 'fifa.worldq.caf', 'uefa.nations', 'eng.2', 'eng.fa', 'esp.copa_del_rey'];
   console.log('\n### Couverture ESPN (scoreboard sur 15 jours)');
   for (const slug of slugs) {
-    const r = await get(ESPN + '/' + slug + '/scoreboard?dates=' + ymd(past) + '-' + ymd(future) + '&limit=300');
+    const r = await get(ESPN + '/' + slug + '/scoreboard?dates=20261001-20261020');
     const ev = r.json && r.json.events ? r.json.events.length : '-';
     const name = r.json && r.json.leagues && r.json.leagues[0] ? r.json.leagues[0].name : '';
     console.log(slug.padEnd(20) + ' HTTP ' + r.status + ' matchs=' + ev + ' ' + name);
@@ -106,6 +124,16 @@ const ymd = (d) => d.toISOString().slice(0, 10).replace(/-/g, '');
   if (core.json && core.json.items) console.log(core.json.items.slice(0, 5).map((i) => i.$ref).join('\n'));
 
   // 5. Autres sources.
+  for (const u of ['https://api.football-data.org/v4/teams/57/matches?status=FINISHED&limit=5',
+    'https://api.football-data.org/v4/competitions/PL/matches?matchday=7',
+    'https://www.thesportsdb.com/api/v1/json/3/searchevents.php?e=Arsenal_vs_Chelsea',
+    'https://www.thesportsdb.com/api/v1/json/3/eventsday.php?d=2026-10-04&s=Soccer',
+    'https://www.thesportsdb.com/api/v1/json/3/eventspastleague.php?id=4328']) {
+    const r = await get(u);
+    const j = r.json || {};
+    const arr = j.matches || j.event || j.events || j.results || [];
+    console.log('\n' + u + ' → HTTP ' + r.status + ' éléments=' + (Array.isArray(arr) ? arr.length : '-') + ' ' + (j.message || j.errorCode || ''));
+  }
   show('TheSportsDB eventslast (clé publique 3)', await get('https://www.thesportsdb.com/api/v1/json/3/eventslast.php?id=133604'), 4, 40);
   show('API-Football /status sans clé', await get('https://v3.football.api-sports.io/status'), 4, 20);
   show('football-data.org sans clé', await get('https://api.football-data.org/v4/matches'), 3, 20);
