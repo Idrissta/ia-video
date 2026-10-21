@@ -6,6 +6,7 @@ Ce dépôt contient deux applications Android compilées automatiquement par Git
 | --- | --- | --- |
 | **CINÉ-GENESIS** | `film/` | Studio de création IA : images 4K, vidéos 4K (Kling 3.0, LTX-2.3, Veo 3.1…) et films complets montés en 4K sur le téléphone. |
 | **Nova Graph** | `app/` | Calculatrice graphique hors ligne. |
+| **Trouve ton IA** | `trouve/` | Catalogue gratuit de plus de 200 IA expliquées en français, avec recherche en langage naturel. |
 
 ## Télécharger les APK
 
@@ -18,6 +19,61 @@ Ce dépôt contient deux applications Android compilées automatiquement par Git
 Ouvrez le lien depuis le téléphone, puis le fichier `.apk`, et autorisez l'installation depuis cette source si Android le demande
 (Android 8.0 ou plus récent). Les APK sont aussi disponibles comme artefacts de chaque exécution (onglet **Actions**),
 et un tag `v*` crée une *Release* versionnée.
+
+**Trouve ton IA** a son propre workflow (**APK Trouve ton IA**) et sa propre version [**trouve-latest**](../../releases/tag/trouve-latest) :
+
+- `TrouveTonIA.apk` — `https://github.com/Idrissta/ia-video/releases/download/trouve-latest/TrouveTonIA.apk`
+
+---
+
+# Trouve ton IA — le catalogue des IA, en français
+
+Application Android gratuite, sans publicité et sans compte, pour trouver l'IA qu'il te faut : décris ce que tu veux faire
+(« enlever le fond d'une photo », « créer une chanson », « réviser mon bac »…) et l'appli te propose les bons outils,
+avec pour chacun ce qui est vraiment gratuit, le prix, les plateformes et les alternatives.
+
+<p align="center">
+  <img src="docs/trouve-accueil.png" width="220" alt="Accueil de Trouve ton IA">
+  <img src="docs/trouve-recherche.png" width="220" alt="Recherche en langage naturel">
+  <img src="docs/trouve-fiche.png" width="220" alt="Fiche d'un outil">
+  <img src="docs/trouve-parcours.png" width="220" alt="Parcours pas à pas">
+</p>
+
+### Fonctionnalités
+
+- **Plus de 200 IA** dans 22 catégories (assistants, images, vidéo, montage, voix, musique, études, code, sites sans coder,
+  3D, IA privées sur ton appareil…), chacune avec une fiche en français : résumé, ce qui est gratuit, tarif indicatif,
+  points forts, limites, plateformes, alternatives.
+- **Recherche en langage naturel** hors ligne : accents, pluriels, synonymes (« diapo » → présentation), fautes de frappe
+  (« chatgtp », « mid journey ») et intentions (« gratuit », « sans compte », « sur mon téléphone », « hors ligne »)
+  qui proposent automatiquement le bon filtre.
+- **Parcours pas à pas** : créer une vidéo YouTube, composer une chanson, réaliser un court-métrage IA, réviser un examen,
+  lancer sa marque, créer une appli sans coder, vendre en ligne, décrocher un emploi.
+- **Sélections** : 100 % gratuites, sans inscription, applis Android, open source, made in France, coups de cœur.
+- **Filtres et tri** (gratuit, version gratuite, sans compte, Android, en français, open source), **favoris**,
+  **comparateur** jusqu'à 3 outils, historique des recherches, partage d'une fiche, thème sombre ou clair.
+- **Fonctionne hors ligne** : le catalogue est intégré à l'APK. Il se **met à jour tout seul** (au plus deux fois par jour)
+  depuis `trouve/src/main/assets/web/data/catalogue.json` sur la branche `master` du dépôt : ajouter une IA dans ce
+  fichier et augmenter `version` suffit pour qu'elle apparaisse chez tout le monde, sans réinstaller l'appli.
+- Réseau limité : l'appli ne contacte que le catalogue du dépôt et le service de logos de DuckDuckGo (désactivable dans
+  les réglages) ; les sites des outils s'ouvrent dans le navigateur.
+
+### Architecture
+
+```
+trouve/src/main/
+├── java/com/idrissta/trouvetonia/MainActivity.java   coque native : WebView plein écran, liens externes, partage, retour
+└── assets/web/
+    ├── index.html, css/app.css
+    ├── data/catalogue.json   catégories, sélections, parcours et outils (un outil par ligne)
+    ├── js/search.js          moteur de recherche en français (aussi utilisé par les tests Node)
+    ├── js/store.js           favoris, réglages, chargement et mise à jour du catalogue
+    └── js/app.js             écrans, navigation et interactions
+```
+
+Développer dans un navigateur : `python3 -m http.server 8000 -d trouve/src/main/assets/web`.
+Tests : `node tools/test-trouve.js` (validité du catalogue et pertinence de la recherche) ;
+`node tools/trouve-liens.js` vérifie que les sites officiels répondent (réseau requis).
 
 ---
 
@@ -141,6 +197,7 @@ Prérequis : JDK 17 et le SDK Android (Android Studio les fournit).
 ./gradlew assembleRelease      # → app/…/app-release.apk et film/…/film-release.apk
 ./gradlew :app:installDebug    # installe Nova Graph sur un appareil connecté
 ./gradlew :film:installDebug   # installe CINÉ-GENESIS
+./gradlew :trouve:installDebug # installe Trouve ton IA
 ```
 
 Ou ouvrez simplement le dossier dans Android Studio.

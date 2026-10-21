@@ -1,0 +1,115 @@
+name: APK Trouve ton IA
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - "trouve/**"
+      - "tools/test-trouve.js"
+      - "tools/trouve-*.js"
+      - ".github/workflows/trouve.yml"
+      - "settings.gradle.kts"
+      - "build.gradle.kts"
+      - "gradle/**"
+  pull_request:
+    paths:
+      - "trouve/**"
+      - "tools/test-trouve.js"
+      - "tools/trouve-*.js"
+      - ".github/workflows/trouve.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: trouve-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Compiler Trouve ton IA
+    runs-on: ubuntu-latest
+    env:
+      # Secrets facultatifs pour signer avec votre propre clé (voir README).
+      KEYSTORE_B64: ${{ secrets.NOVA_KEYSTORE_BASE64 }}
+      NOVA_KEYSTORE_PASSWORD: ${{ secrets.NOVA_KEYSTORE_PASSWORD }}
+      NOVA_KEY_ALIAS: ${{ secrets.NOVA_KEY_ALIAS }}
+      NOVA_KEY_PASSWORD: ${{ secrets.NOVA_KEY_PASSWORD }}
+      NOVA_VERSION_CODE: ${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Tests du catalogue et du moteur de recherche
+        run: node tools/test-trouve.js
+
+      - name: Syntaxe des scripts
+        run: for f in trouve/src/main/assets/web/js/*.js tools/trouve-*.js; do node --check "$f"; done
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Clé de signature personnelle
+        if: ${{ env.KEYSTORE_B64 != '' }}
+        run: |
+          echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.keystore"
+          echo "NOVA_KEYSTORE=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
+
+      - name: Compiler l'APK
+        run: ./gradlew --no-daemon :trouve:assembleRelease
+
+      - name: Vérifier la signature et le manifeste
+        run: |
+          BT="$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)"
+          APK=trouve/build/outputs/apk/release/trouve-release.apk
+          echo "== $APK ($(du -h "$APK" | cut -f1))"
+          "$BT/apksigner" verify --verbose --print-certs "$APK"
+          "$BT/aapt2" dump badging "$APK" | grep -E "^(package|sdkVersion|targetSdkVersion|application-label|launchable-activity|uses-permission)"
+          unzip -l "$APK" | grep -E "assets/web/(index.html|js/(app|search|store).js|css/app.css|data/catalogue.json)"
+
+      - name: Préparer le fichier
+        run: |
+          mkdir -p dist
+          cp trouve/build/outputs/apk/release/trouve-release.apk "dist/TrouveTonIA-1.0.${{ github.run_number }}.apk"
+          ls -la dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TrouveTonIA-apk
+          path: dist/*.apk
+          if-no-files-found: error
+
+      # Lien fixe, toujours à jour, à ouvrir depuis le téléphone :
+      # https://github.com/<propriétaire>/<dépôt>/releases/download/trouve-latest/TrouveTonIA.apk
+      - name: Mettre à jour la version « trouve-latest »
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/heads/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp dist/TrouveTonIA-1.0.*.apk dist/TrouveTonIA.apk
+          gh release delete trouve-latest --yes --cleanup-tag --repo "$GITHUB_REPOSITORY" || true
+          gh release create trouve-latest dist/TrouveTonIA.apk \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease \
+            --title "Trouve ton IA — dernière version (${GITHUB_REF_NAME} · ${GITHUB_SHA::7})" \
+            --notes "Trouve ton IA : catalogue gratuit, sans pub et sans compte de plus de 200 IA expliquées en français (prix, ce qui est gratuit, plateformes), avec recherche en langage naturel, parcours pas à pas, favoris et comparateur. Fonctionne hors ligne ; le catalogue se met à jour tout seul. Android 8.0 ou plus récent."
+
+  # Vérifie que les sites du catalogue répondent : informatif, ne bloque jamais la compilation.
+  liens:
+    name: Liens du catalogue
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Sites officiels des outils
+        run: node tools/trouve-liens.js
