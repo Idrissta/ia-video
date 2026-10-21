@@ -33,9 +33,12 @@ async function tester(o) {
     while (file.length) res.push(await tester(file.shift()));
   }));
   res.sort((a, b) => a.o.id.localeCompare(b.o.id));
-  const morts = res.filter((r) => r.code === 0 || r.code === 404 || r.code === 410 || r.code >= 500);
-  const proteges = res.filter((r) => [401, 403, 405, 406, 429, 451].includes(r.code));
-  const redirs = res.filter((r) => r.code >= 200 && r.code < 400 && r.final && new URL(r.final).hostname !== new URL(r.o.url).hostname);
+  // En-têtes trop gros pour le client HTTP de Node : le site répond, il faut juste le vérifier à la main.
+  const protege = (r) => [401, 403, 405, 406, 429, 451].includes(r.code) || r.erreur === "UND_ERR_HEADERS_OVERFLOW";
+  const proteges = res.filter(protege);
+  const morts = res.filter((r) => !protege(r) && (r.code === 0 || r.code === 404 || r.code === 410 || r.code >= 500));
+  const domaine = (u) => new URL(u).hostname.replace(/^www\./, "");
+  const redirs = res.filter((r) => r.code >= 200 && r.code < 400 && r.final && domaine(r.final) !== domaine(r.o.url));
 
   console.log(`${res.length} sites testés : ${res.length - morts.length - proteges.length} OK, ${proteges.length} protégés, ${morts.length} en échec\n`);
   if (morts.length) {
@@ -45,7 +48,7 @@ async function tester(o) {
   }
   if (proteges.length) {
     console.log("Protégés contre les robots (à vérifier à la main) :");
-    for (const r of proteges) console.log(`  ? ${r.o.id.padEnd(18)} ${String(r.code).padEnd(14)} ${r.o.url}`);
+    for (const r of proteges) console.log(`  ? ${r.o.id.padEnd(18)} ${String(r.code || r.erreur).padEnd(14)} ${r.o.url}`);
     console.log("");
   }
   if (redirs.length) {
