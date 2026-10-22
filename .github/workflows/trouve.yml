@@ -99,7 +99,7 @@ jobs:
           gh release create trouve-latest dist/TrouveTonIA.apk \
             --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease \
             --title "Trouve ton IA — dernière version (${GITHUB_REF_NAME} · ${GITHUB_SHA::7})" \
-            --notes "Trouve ton IA : catalogue gratuit, sans pub et sans compte de plus de 200 IA expliquées en français (prix, ce qui est gratuit, plateformes), avec recherche en langage naturel, parcours pas à pas, favoris et comparateur. Fonctionne hors ligne ; le catalogue se met à jour tout seul. Android 8.0 ou plus récent."
+            --notes "Trouve ton IA : appli gratuite, sans pub et sans compte. Onglet Créer : décris ta vidéo et l'appli la fait elle-même (scénario, images IA, clips IA LTX-Video en option, voix off française, musique, sous-titres), puis l'enregistre dans ta galerie ; ou crée des images. Plus un catalogue de plus de 1000 IA expliquées en français (prix, ce qui est gratuit, plateformes) avec recherche en langage naturel, comparateur de 45 générateurs vidéo, parcours, favoris. Android 8.0 ou plus récent."
 
   # Vérifie que les sites du catalogue répondent : informatif, ne bloque jamais la compilation.
   liens:
