@@ -1,0 +1,451 @@
+{
+ "wan21.envoi": {
+  "secondes": 0,
+  "code": 200,
+  "flux": [
+   "event: complete",
+   "data: [null, null, {\"__type__\": \"update\"}, {\"__type__\": \"update\"}, {\"__type__\": \"update\"}, {\"__type__\": \"update\"}]"
+  ]
+ },
+ "horde2.envoi": {
+  "code": 202,
+  "ms": 498,
+  "octets": 58,
+  "entetes": {
+   "content-type": "application/json; charset=utf-8",
+   "retry-after": "1",
+   "access-control-allow-origin": "*",
+   "x-ratelimit-remaining": "1"
+  },
+  "corps": "{\"id\":\"7cf1b3cc-f742-48eb-97f3-7e8ede89bf13\",\"kudos\":7.0}\n"
+ },
+ "flux.schnell": {
+  "secondes": 0,
+  "code": 200,
+  "flux": [
+   "event: error",
+   "data: null"
+  ]
+ },
+ "zimage.mrfakename": {
+  "secondes": 0,
+  "code": 200,
+  "flux": [
+   "event: error",
+   "data: {\"error\": \"You have exceeded your ZeroGPU quota (90s requested vs. 60s left). Try again in 23:59:59. Authenticate with a Hugging Face token for more quota - https://huggingface.co/settings/tokens\", \"duration\": 10, \"visible\": true, \"title\": \"ZeroGPU quota exceeded\"}"
+  ]
+ },
+ "zimage.tongyi.api": {
+  "/generate": {
+   "entrees": [
+    "prompt:str",
+    "resolution:Literal['1024x1024 ( 1:1 )', '1152x896 ( 9:7 )', '896x1152 ( 7:9 )', '1152x864 ( 4:3 )', '864x1152 ( 3:4 )', '1248x832 ( 3:2 )', '832x1248 ( 2:3 )', '1280x720 ( 16:9 )', '720x1280 ( 9:16 )', '1344x576 ( 21:9 )', '576x1344 ( 9:21 )', '1280x1280 ( 1:1 )', '1440x1120 ( 9:7 )', '1120x1440 ( 7:9 )', '1472x1104 ( 4:3 )', '1104x1472 ( 3:4 )', '1536x1024 ( 3:2 )', '1024x1536 ( 2:3 )', '1536x864 ( 16:9 )', '864x1536 ( 9:16 )', '1680x720 ( 21:9 )', '720x1680 ( 9:21 )', '1536x1536 ( 1:1 )', '1728x1344 ( 9:7 )', '1344x1728 ( 7:9 )', '1728x1296 ( 4:3 )', '1296x1728 ( 3:4 )', '1872x1248 ( 3:2 )', '1248x1872 ( 2:3 )', '2048x1152 ( 16:9 )', '1152x2048 ( 9:16 )', '2016x864 ( 21:9 )', '864x2016 ( 9:21 )']=\"1024x1024 ( 1:1 )\"",
+    "seed:int=42",
+    "steps:float=8",
+    "shift:float=3",
+    "random_seed:bool=true",
+    "gallery_images:list[dict(image: dict(path: str | None (Path to a local file), url: str | None (Publicly available url or base64 encoded image), size: int | None (Size of image in bytes), orig_name: str | None (Original filename), mime_type: str | None (mime type of image), is_stream: bool (Can always be set to False), meta: dict(str, Any)), caption: str | None) | dict(video: filepath, caption: str | None)]=[]"
+   ],
+   "sorties": [
+    "Generated Images:list[dict(image: dict(path: str | None (Path to a local file), url: str | None (Publicly available url or base64 encoded image), size: int | None (Size of image in bytes), orig_name: str | None (Original filename), mime_type: str | None (mime type of image), is_stream: bool (Can always be set to False), meta: dict(str, Any)), caption: str | None) | dict(video: filepath, caption: str | None)]",
+    "Seed Used:str",
+    "Seed:int"
+   ]
+  }
+ },
+ "wan22.lightning": {
+  "secondes": 0,
+  "code": 200,
+  "flux": [
+   "event: error",
+   "data: null"
+  ]
+ },
+ "ltx.texte": {
+  "secondes": 5,
+  "code": 200,
+  "flux": [
+   "event: complete",
+   "data: [{\"video\": {\"path\": \"/tmp/gradio/85f6bbf94af10ea19a2facfa28285d78025cfd9afd479ce553cf9536807e6ba2/output_63432.mp4\", \"url\": \"https://lightricks-ltx-video-distilled.hf.space/gradio_api/file=/tmp/gradio/85f6bbf94af10ea19a2facfa28285d78025cfd9afd479ce553cf9536807e6ba2/output_63432.mp4\", \"size\": null, \"orig_name\": \"output_63432.mp4\", \"mime_type\": null, \"is_stream\": false, \"meta\": {\"_type\": \"gradio.FileData\"}}, \"subtitles\": null}, 304393863]"
+  ],
+  "fichier": {
+   "code": 200,
+   "ms": 373,
+   "octets": 335740,
+   "entetes": {
+    "content-type": "video/mp4"
+   }
+  },
+  "url": "https://lightricks-ltx-video-distilled.hf.space/gradio_api/file=/tmp/gradio/85f6bbf94af10ea19a2facfa28285d78025cfd9afd479ce553cf9536807e6ba2/output_63432.mp4"
+ },
+ "ltx.image": {
+  "secondes": 6,
+  "code": 200,
+  "flux": [
+   "event: complete",
+   "data: [{\"video\": {\"path\": \"/tmp/gradio/74dcf05de4db73c5f205690b5463c630570d7d5d8cfb1ed44fc59e70b2378ee1/output_81413.mp4\", \"url\": \"https://lightricks-ltx-video-distilled.hf.space/gradio_api/file=/tmp/gradio/74dcf05de4db73c5f205690b5463c630570d7d5d8cfb1ed44fc59e70b2378ee1/output_81413.mp4\", \"size\": null, \"orig_name\": \"output_81413.mp4\", \"mime_type\": null, \"is_stream\": false, \"meta\": {\"_type\": \"gradio.FileData\"}}, \"subtitles\": null}, 1886472289]"
+  ],
+  "fichier": {
+   "code": 200,
+   "ms": 406,
+   "octets": 347709,
+   "entetes": {
+    "content-type": "video/mp4"
+   }
+  },
+  "url": "https://lightricks-ltx-video-distilled.hf.space/gradio_api/file=/tmp/gradio/74dcf05de4db73c5f205690b5463c630570d7d5d8cfb1ed44fc59e70b2378ee1/output_81413.mp4"
+ },
+ "wan21.etat.0": {
+  "secondes": 0,
+  "code": 200,
+  "flux": [
+   "event: error",
+   "data: null"
+  ]
+ },
+ "wan21.etat.1": {
+  "secondes": 0,
+  "code": 200,
+  "flux": [
+   "event: error",
+   "data: null"
+  ]
+ },
+ "wan21.etat.2": {
+  "secondes": 1,
+  "code": 200,
+  "flux": [
+   "event: error",
+   "data: null"
+  ]
+ },
+ "horde2.resultat": {
+  "secondes": 50,
+  "etat": {
+   "finished": 1,
+   "processing": 0,
+   "restarted": 0,
+   "waiting": 0,
+   "done": true,
+   "faulted": false,
+   "wait_time": 0,
+   "queue_position": 0,
+   "kudos": 9,
+   "is_possible": true,
+   "eligible_workers": 13,
+   "eligible_worker_threads": 14,
+   "might_stall": false
+  },
+  "img": {
+   "modele": "stable_diffusion",
+   "url": "https://a223539ccf6caa2d76459c9727d276e6.r2.cloudflarestorage.com/stable-horde/62f05f61-a49f-4b43-9034-4256c263ba09.webp?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=246782cc9101762ba914350d8058cd83%2F20261022%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20261022T080843Z&X-Amz-Expires=1800&X-Amz-SignedHeaders=host&X-Amz-Signature=a0d3efb571b6e710e578439c459678020d8b404c409bc2e2bce799cba45643c2"
+  }
+ },
+ "horde2.image": {
+  "code": 200,
+  "ms": 467,
+  "octets": 141492,
+  "entetes": {
+   "content-type": "image/webp"
+  }
+ },
+ "wan21.etat.3": {
+  "secondes": 0,
+  "code": 200,
+  "flux": [
+   "event: error",
+   "data: null"
+  ]
+ },
+ "wan21.etat.4": {
+  "secondes": 0,
+  "code": 200,
+  "flux": [
+   "event: error",
+   "data: null"
+  ]
+ },
+ "wan21.etat.5": {
+  "secondes": 0,
+  "code": 200,
+  "flux": [
+   "event: error",
+   "data: null"
+  ]
+ },
+ "wan21.etat.6": {
+  "secondes": 0,
+  "code": 200,
+  "flux": [
+   "event: error",
+   "data: null"
+  ]
+ },
+ "wan21.etat.7": {
+  "secondes": 0,
+  "code": 200,
+  "flux": [
+   "event: error",
+   "data: null"
+  ]
+ },
+ "wan21.etat.8": {
+  "secondes": 0,
+  "code": 200,
+  "flux": [
+   "event: error",
+   "data: null"
+  ]
+ },
+ "wan21.etat.9": {
+  "secondes": 0,
+  "code": 200,
+  "flux": [
+   "event: error",
+   "data: null"
+  ]
+ },
+ "wan21.etat.10": {
+  "secondes": 0,
+  "code": 200,
+  "flux": [
+   "event: error",
+   "data: null"
+  ]
+ },
+ "wan21.etat.11": {
+  "secondes": 0,
+  "code": 200,
+  "flux": [
+   "event: error",
+   "data: null"
+  ]
+ },
+ "wan21.etat.12": {
+  "secondes": 1,
+  "code": 200,
+  "flux": [
+   "event: error",
+   "data: null"
+  ]
+ },
+ "wan21.etat.13": {
+  "secondes": 0,
+  "code": 200,
+  "flux": [
+   "event: error",
+   "data: null"
+  ]
+ },
+ "wan21.etat.14": {
+  "secondes": 0,
+  "code": 200,
+  "flux": [
+   "event: error",
+   "data: null"
+  ]
+ },
+ "wan21.etat.15": {
+  "secondes": 0,
+  "code": 200,
+  "flux": [
+   "event: error",
+   "data: null"
+  ]
+ },
+ "wan21.etat.16": {
+  "secondes": 0,
+  "code": 200,
+  "flux": [
+   "event: error",
+   "data: null"
+  ]
+ },
+ "wan21.etat.17": {
+  "secondes": 0,
+  "code": 200,
+  "flux": [
+   "event: error",
+   "data: null"
+  ]
+ },
+ "wan21.etat.18": {
+  "secondes": 0,
+  "code": 200,
+  "flux": [
+   "event: error",
+   "data: null"
+  ]
+ },
+ "wan21.etat.19": {
+  "secondes": 0,
+  "code": 200,
+  "flux": [
+   "event: error",
+   "data: null"
+  ]
+ },
+ "wan21.etat.20": {
+  "secondes": 0,
+  "code": 200,
+  "flux": [
+   "event: error",
+   "data: null"
+  ]
+ },
+ "wan21.etat.21": {
+  "secondes": 0,
+  "code": 200,
+  "flux": [
+   "event: error",
+   "data: null"
+  ]
+ },
+ "wan21.etat.22": {
+  "secondes": 0,
+  "code": 200,
+  "flux": [
+   "event: error",
+   "data: null"
+  ]
+ },
+ "wan21.etat.23": {
+  "secondes": 0,
+  "code": 200,
+  "flux": [
+   "event: error",
+   "data: null"
+  ]
+ },
+ "wan21.etat.24": {
+  "secondes": 0,
+  "code": 200,
+  "flux": [
+   "event: error",
+   "data: null"
+  ]
+ },
+ "wan21.etat.25": {
+  "secondes": 0,
+  "code": 200,
+  "flux": [
+   "event: error",
+   "data: null"
+  ]
+ },
+ "wan21.etat.26": {
+  "secondes": 0,
+  "code": 200,
+  "flux": [
+   "event: error",
+   "data: null"
+  ]
+ },
+ "wan21.etat.27": {
+  "secondes": 0,
+  "code": 200,
+  "flux": [
+   "event: error",
+   "data: null"
+  ]
+ },
+ "wan21.etat.28": {
+  "secondes": 0,
+  "code": 200,
+  "flux": [
+   "event: error",
+   "data: null"
+  ]
+ },
+ "wan21.etat.29": {
+  "secondes": 0,
+  "code": 200,
+  "flux": [
+   "event: error",
+   "data: null"
+  ]
+ },
+ "wan21.etat.30": {
+  "secondes": 0,
+  "code": 200,
+  "flux": [
+   "event: error",
+   "data: null"
+  ]
+ },
+ "wan21.etat.31": {
+  "secondes": 0,
+  "code": 200,
+  "flux": [
+   "event: error",
+   "data: null"
+  ]
+ },
+ "wan21.etat.32": {
+  "secondes": 0,
+  "code": 200,
+  "flux": [
+   "event: error",
+   "data: null"
+  ]
+ },
+ "wan21.etat.33": {
+  "secondes": 0,
+  "code": 200,
+  "flux": [
+   "event: error",
+   "data: null"
+  ]
+ },
+ "wan21.etat.34": {
+  "secondes": 0,
+  "code": 200,
+  "flux": [
+   "event: error",
+   "data: null"
+  ]
+ },
+ "wan21.etat.35": {
+  "secondes": 0,
+  "code": 200,
+  "flux": [
+   "event: error",
+   "data: null"
+  ]
+ },
+ "wan21.etat.36": {
+  "secondes": 0,
+  "code": 200,
+  "flux": [
+   "event: error",
+   "data: null"
+  ]
+ },
+ "wan21.etat.37": {
+  "secondes": 0,
+  "code": 200,
+  "flux": [
+   "event: error",
+   "data: null"
+  ]
+ },
+ "wan21.etat.38": {
+  "secondes": 0,
+  "code": 200,
+  "flux": [
+   "event: error",
+   "data: null"
+  ]
+ },
+ "wan21.etat.39": {
+  "secondes": 0,
+  "code": 200,
+  "flux": [
+   "event: error",
+   "data: null"
+  ]
+ },
+ "wan21.duree": 616,
+ "duree": 616,
+ "date": "2026-10-22T08:18:10.441Z"
+}
