@@ -43,6 +43,8 @@
 
   function racine(mot) {
     if (mot.length <= 3 || /^\d/.test(mot)) return mot;
+    // « anime » (le style japonais, ou « dessin animé ») ne doit pas se confondre avec « animer ».
+    if (mot === "anime" || mot === "animes") return "anime";
     for (const fin of FINS) {
       if (!mot.endsWith(fin)) continue;
       const reste = mot.length - fin.length;
@@ -87,7 +89,8 @@
     ["agrandir", "upscale", "upscaler", "hd", "4k", "resolution", "qualite"],
     ["ameliorer", "nettete", "flou"],
     ["restaurer", "ancienne", "vieille", "abimee", "coloriser"],
-    ["animer", "animation", "anime"],
+    ["animer", "animation"],
+    ["anime", "manga"],
     ["generer", "creer", "creation", "fabriquer", "produire"],
     ["tiktok", "reels", "reel", "shorts", "short"],
     ["pub", "publicite", "ads", "annonce"],
@@ -149,6 +152,7 @@
     { cle: "fr", motifs: ["francais", "en francais", "french"] },
     { cle: "local", motifs: ["hors ligne", "sans internet", "offline", "en local", "sur mon pc", "sur mon ordinateur", "prive", "confidentiel"] },
     { cle: "libre", motifs: ["open source", "opensource", "libre"] },
+    { cle: "rapide", motifs: ["rapide", "rapides", "rapidement", "vite", "instantane", "en quelques secondes"] },
   ];
 
   function intentions(texte) {
@@ -208,6 +212,7 @@
   /* ---------------------------------------------------------------- */
 
   const POIDS = { nom: 10, alias: 9, tags: 5, cat1: 3, cat2: 2, resume: 2.5, par: 2, desc: 1, gratuit: 0.5 };
+  const CHAMPS = Object.keys(POIDS);
 
   function ensemble(texte) {
     const s = new Set();
@@ -232,14 +237,26 @@
         desc: ensemble(o.desc),
         gratuit: ensemble(o.gratuit),
       };
-      const tous = new Set();
-      for (const k in champs) champs[k].forEach((w) => tous.add(w));
       const compacts = [normaliser(o.nom).replace(/ /g, "")]
         .concat((ALIAS[o.id] || []).map((a) => normaliser(a).replace(/ /g, "")));
-      return { outil: o, champs, tous: [...tous], compacts };
+      return { outil: o, champs, compacts };
     });
 
-    return { catalogue, entrees, motsCat };
+    // Index inversé : mot → (outil, champ). La recherche parcourt le vocabulaire une seule fois
+    // par mot de la requête, au lieu de comparer chaque mot de chaque outil.
+    const vocab = new Map();
+    entrees.forEach((e, i) => {
+      CHAMPS.forEach((champ, ci) => {
+        for (const w of e.champs[champ]) {
+          let l = vocab.get(w);
+          if (!l) vocab.set(w, (l = []));
+          l.push(i * 16 + ci);
+        }
+      });
+    });
+    const themes = new Set();
+    for (const set of motsCat.values()) for (const w of set) themes.add(w);
+    return { catalogue, entrees, motsCat, themes, vocab, vocabMots: [...vocab.keys()] };
   }
 
   /* ---------------------------------------------------------------- */
@@ -274,28 +291,40 @@
     return { termes, compact: bruts.join(""), complet: mots(texte).join(""), intentions: d.intentions };
   }
 
-  function scoreTerme(e, t, long) {
-    let total = 0;
-    for (const champ in POIDS) {
-      const set = e.champs[champ];
-      if (!set.size) continue;
-      let best = 0;
-      if (set.has(t.racine)) best = 1;
-      else {
-        for (const s of t.syn) if (set.has(s)) { best = 0.6; break; }
-        if (best < 0.6) {
-          for (const w of set) {
-            const qv = qualite(t.racine, w);
-            if (qv > best) best = qv;
-            if (best >= 0.75) break;
-          }
-        }
+  // Score de chaque outil pour un mot de la requête (meilleure correspondance par champ).
+  function scoresTerme(index, t, long) {
+    const best = new Map();
+    const ajouter = (w, q) => {
+      const l = index.vocab.get(w);
+      if (!l) return;
+      for (let i = 0; i < l.length; i++) {
+        const k = l[i];
+        if ((best.get(k) || 0) < q) best.set(k, q);
       }
-      // Dans une phrase longue, le nom compte moins : « une vidéo de mon chat » ne vise pas « Le Chat ».
-      const poids = long && (champ === "nom" || champ === "alias") ? POIDS[champ] * 0.4 : POIDS[champ];
-      total += poids * best;
+    };
+    ajouter(t.racine, 1);
+    for (const s of t.syn) ajouter(s, 0.6);
+    for (const w of index.vocabMots) {
+      if (w === t.racine) continue;
+      const q = qualite(t.racine, w);
+      if (q > 0) ajouter(w, q);
     }
-    return total;
+    // Un mot de thème (« vidéo », « chanson », « photo »…) dans un nom ne désigne pas l'outil :
+    // sans cela « Wave.video » passerait devant Kling pour « faire une vidéo ». Le nom exact,
+    // lui, reste trouvé par le bonus « nom d'un bloc » de chercher().
+    const theme = index.themes.has(t.racine) || t.syn.some((x) => index.themes.has(x));
+    const scores = new Float64Array(index.entrees.length);
+    for (const [k, q] of best) {
+      const champ = CHAMPS[k & 15];
+      let poids = POIDS[champ];
+      if (champ === "nom" || champ === "alias" || champ === "par") {
+        // Dans une phrase longue, le nom compte moins : « une vidéo de mon chat » ne vise pas « Le Chat ».
+        if (long && champ !== "par") poids *= 0.4;
+        if (theme) poids *= 0.35;
+      }
+      scores[k >> 4] += poids * q;
+    }
+    return scores;
   }
 
   function chercher(index, texte, options) {
@@ -303,20 +332,21 @@
     const a = analyser(texte);
     if (!a.termes.length) return { resultats: [], categorie: null, intentions: a.intentions };
 
+    const forts = a.termes.filter((t) => !t.faible).length;
+    const long = forts >= 3;
+    const parTerme = a.termes.map((t) => ({ t, s: scoresTerme(index, t, long) }));
     const resultats = [];
-    for (const e of index.entrees) {
+    index.entrees.forEach((e, i) => {
       let score = 0;
       let couverts = 0;
-      const forts = a.termes.filter((t) => !t.faible).length;
-      const long = forts >= 3;
-      for (const t of a.termes) {
-        const s = scoreTerme(e, t, long);
+      for (const { t, s } of parTerme) {
+        const v = s[i];
         if (t.faible) {
-          score += s * 0.3;
+          score += v * 0.3;
           continue;
         }
-        if (s > 0) couverts++;
-        score += s;
+        if (v > 0) couverts++;
+        score += v;
       }
       // Nom écrit d'un bloc ou en plusieurs morceaux (« chat gpt », « le chat », « midjourney »).
       if (a.complet.length >= 3) {
@@ -326,7 +356,7 @@
           else if (a.complet.length >= 5 && distance(a.complet, c, 1) <= 1) score += 25;
         }
       }
-      if (score <= 0) continue;
+      if (score <= 0) return;
       score *= Math.pow(couverts / forts, 1.5) || 0.2;
       const o = e.outil;
       const it = a.intentions;
@@ -336,9 +366,15 @@
       if (it.fr) score *= o.fr ? 1.2 : 0.7;
       if (it.local) score *= o.local ? 1.6 : 0.8;
       if (it.libre) score *= o.libre ? 1.5 : 0.75;
+      // Vitesse connue seulement pour les générateurs vidéo (fiche technique).
+      if (it.rapide && o.video) score *= o.video.v === "rapide" ? 1.5 : o.video.v === "lente" ? 0.65 : 1;
       if (o.choix) score *= 1.12;
+      // Les outils de référence (fiche complète avec points forts) passent devant les homonymes
+      // obscurs, et les générateurs vidéo les mieux notés devant les autres.
+      if (o.forts && o.forts.length) score *= 1.15;
+      if (o.video && o.video.q) score *= 0.95 + 0.04 * o.video.q;
       resultats.push({ outil: o, score });
-    }
+    });
     resultats.sort((x, y) => y.score - x.score || x.outil.nom.localeCompare(y.outil.nom, "fr"));
     const top = resultats.length ? resultats[0].score : 0;
     const seuil = Math.max(1, top * (opts.seuil == null ? 0.12 : opts.seuil));
@@ -377,7 +413,9 @@
 
   function correspond(o, f) {
     if (!f) return true;
+    if (f.ids && !f.ids.includes(o.id)) return false;
     if (f.cat && !(o.cat || []).includes(f.cat)) return false;
+    if (f.video && !o.video) return false;
     if (f.prix && f.prix.length && !f.prix.includes(o.prix)) return false;
     if (f.sanscompte && !o.sanscompte) return false;
     if (f.fr && !o.fr) return false;

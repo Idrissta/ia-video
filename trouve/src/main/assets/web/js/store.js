@@ -6,7 +6,8 @@
   // Catalogue publié dans le dépôt : le modifier met à jour l'appli sans la réinstaller.
   const URL_DISTANTE = "https://raw.githubusercontent.com/Idrissta/ia-video/master/trouve/src/main/assets/web/data/catalogue.json";
   const DELAI_VERIF = 12 * 3600 * 1000;
-  const PRIX = ["gratuit", "freemium", "essai", "payant"];
+  const PRIX = ["gratuit", "freemium", "essai", "payant", "nc"];
+  const VITESSES = ["rapide", "moyenne", "lente"];
 
   function lire(k, defaut) {
     try {
@@ -121,6 +122,20 @@
   const texte = (v) => (typeof v === "string" ? v : "");
   const textes = (v) => (Array.isArray(v) ? v.filter((x) => typeof x === "string" && x) : []);
 
+  // Fiche technique d'un générateur vidéo (facultative).
+  function video(v) {
+    if (!v || typeof v !== "object") return null;
+    return {
+      q: Number.isInteger(v.q) && v.q >= 1 && v.q <= 5 ? v.q : 0,
+      v: VITESSES.includes(v.v) ? v.v : "",
+      res: texte(v.res),
+      duree: texte(v.duree),
+      son: v.son === true,
+      img: v.img === true,
+      txt: v.txt !== false,
+    };
+  }
+
   // Contrôle et nettoie un catalogue (intégré ou téléchargé). Renvoie null s'il est inutilisable.
   function valider(c) {
     if (!c || c.format !== 1 || !Number.isInteger(c.version) || !Array.isArray(c.outils) || !Array.isArray(c.categories)) return null;
@@ -157,6 +172,7 @@
         local: o.local === true,
         choix: o.choix === true,
         ajout: /^\d{4}-\d{2}-\d{2}$/.test(o.ajout || "") ? o.ajout : texte(c.maj),
+        video: video(o.video),
       });
     }
     if (outils.length < 50) return null;
@@ -173,7 +189,7 @@
       }));
     const collections = (Array.isArray(c.collections) ? c.collections : [])
       .filter((x) => x && typeof x.id === "string" && typeof x.titre === "string" && x.filtre && typeof x.filtre === "object")
-      .map((x) => ({ id: x.id, titre: x.titre, icone: texte(x.icone) || "•", desc: texte(x.desc), filtre: x.filtre }));
+      .map((x) => ({ id: x.id, titre: x.titre, icone: texte(x.icone) || "•", desc: texte(x.desc), filtre: x.filtre, type: x.type === "profil" ? "profil" : "selection" }));
     return { format: 1, version: c.version, maj: texte(c.maj), categories, collections, parcours, outils };
   }
 

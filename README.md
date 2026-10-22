@@ -6,7 +6,7 @@ Ce dépôt contient deux applications Android compilées automatiquement par Git
 | --- | --- | --- |
 | **CINÉ-GENESIS** | `film/` | Studio de création IA : images 4K, vidéos 4K (Kling 3.0, LTX-2.3, Veo 3.1…) et films complets montés en 4K sur le téléphone. |
 | **Nova Graph** | `app/` | Calculatrice graphique hors ligne. |
-| **Trouve ton IA** | `trouve/` | Catalogue gratuit de plus de 200 IA expliquées en français, avec recherche en langage naturel. |
+| **Trouve ton IA** | `trouve/` | Catalogue gratuit de plus de 1000 IA expliquées en français, comparateur de générateurs vidéo et recherche en langage naturel. |
 
 ## Télécharger les APK
 
@@ -35,21 +35,27 @@ avec pour chacun ce qui est vraiment gratuit, le prix, les plateformes et les al
 <p align="center">
   <img src="docs/trouve-accueil.png" width="220" alt="Accueil de Trouve ton IA">
   <img src="docs/trouve-recherche.png" width="220" alt="Recherche en langage naturel">
+  <img src="docs/trouve-videos.png" width="220" alt="Comparateur de générateurs vidéo">
   <img src="docs/trouve-fiche.png" width="220" alt="Fiche d'un outil">
-  <img src="docs/trouve-parcours.png" width="220" alt="Parcours pas à pas">
 </p>
 
 ### Fonctionnalités
 
-- **Plus de 200 IA** dans 22 catégories (assistants, images, vidéo, montage, voix, musique, études, code, sites sans coder,
-  3D, IA privées sur ton appareil…), chacune avec une fiche en français : résumé, ce qui est gratuit, tarif indicatif,
-  points forts, limites, plateformes, alternatives.
+- **Plus de 1000 IA** dans 25 catégories (assistants, images, vidéo, montage, voix, musique, études, code, sites sans coder,
+  3D, santé et sport, vie quotidienne, argent et droit, IA privées sur ton appareil…), chacune avec une fiche en français :
+  résumé, ce qui est gratuit, tarif indicatif, plateformes, alternatives, et pour les plus connues points forts et limites.
+- **Comparateur de générateurs vidéo** : 45 générateurs (Kling, Veo/Flow, Sora, Runway, Hailuo, PixVerse, Vidu, Dreamina,
+  Wan, LTX, FramePack…) classés par qualité, vitesse ou gratuité, avec filtres « gratuit », « rapides », « son intégré »,
+  « photo → vidéo », « 4K », « Android », « open source / PC ». Chaque fiche vidéo indique définition, durée d'un clip,
+  son, vitesse et départ texte ou image. Une recherche comme « vidéo IA gratuite et rapide » met les plus rapides en tête.
 - **Recherche en langage naturel** hors ligne : accents, pluriels, synonymes (« diapo » → présentation), fautes de frappe
   (« chatgtp », « mid journey ») et intentions (« gratuit », « sans compte », « sur mon téléphone », « hors ligne »)
   qui proposent automatiquement le bon filtre.
-- **Parcours pas à pas** : créer une vidéo YouTube, composer une chanson, réaliser un court-métrage IA, réviser un examen,
+- **Parcours pas à pas** : créer une vidéo YouTube, faire une vidéo IA gratuite et rapide, composer une chanson, réaliser un court-métrage IA, réviser un examen,
   lancer sa marque, créer une appli sans coder, vendre en ligne, décrocher un emploi.
-- **Sélections** : 100 % gratuites, sans inscription, applis Android, open source, made in France, coups de cœur.
+- **Sélections** : 100 % gratuites, vidéo IA gratuite, sans inscription, applis Android, open source, made in France,
+  coups de cœur, et des sélections **« Pour qui ? »** (étudiants, enseignants, créateurs, vendeurs, développeurs, artistes,
+  musiciens, pros, famille).
 - **Filtres et tri** (gratuit, version gratuite, sans compte, Android, en français, open source), **favoris**,
   **comparateur** jusqu'à 3 outils, historique des recherches, partage d'une fiche, thème sombre ou clair.
 - **Fonctionne hors ligne** : le catalogue est intégré à l'APK. Il se **met à jour tout seul** (au plus deux fois par jour)
@@ -70,6 +76,12 @@ trouve/src/main/
     ├── js/store.js           favoris, réglages, chargement et mise à jour du catalogue
     └── js/app.js             écrans, navigation et interactions
 ```
+
+Les fiches sont rédigées en français pour l'appli. Les nouveaux outils ont été repérés dans notre propre liste et dans
+des listes publiques sur GitHub (steven2358/awesome-generative-ai, filipecalegario/awesome-generative-ai,
+mahseema/awesome-ai-tools, eudk/awesome-ai-tools — seuls les noms et adresses ont servi), puis leurs sites officiels visités un par un par le workflow **Trouve ton IA — recherche** (`tools/trouve-recherche/`, résultats
+dans `resultats.json`) ; les sites injoignables ou fermés ont été écartés. Prix et caractéristiques vidéo sont indicatifs :
+ils changent vite, l'appli invite à vérifier sur le site officiel.
 
 Développer dans un navigateur : `python3 -m http.server 8000 -d trouve/src/main/assets/web`.
 Tests : `node tools/test-trouve.js` (validité du catalogue et pertinence de la recherche) ;

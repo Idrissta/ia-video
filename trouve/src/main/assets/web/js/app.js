@@ -13,6 +13,7 @@
     freemium: { court: "Version gratuite", long: "Gratuit avec limites", rang: 1 },
     essai: { court: "Essai gratuit", long: "Essai gratuit puis payant", rang: 2 },
     payant: { court: "Payant", long: "Payant", rang: 3 },
+    nc: { court: "Prix à vérifier", long: "Prix à vérifier sur le site", rang: 4 },
   };
   const PLATS = {
     web: "Navigateur",
@@ -33,6 +34,7 @@
   ];
   const EXEMPLES = [
     "Enlever le fond d'une photo",
+    "Vidéo IA gratuite et rapide",
     "Créer une chanson",
     "Animer une photo en vidéo",
     "Réviser mes cours",
@@ -285,10 +287,17 @@
       .map((r) => r.x);
   }
 
+  function index() {
+    if (!S.index) S.index = R.creerIndex(S.cat);
+    return S.index;
+  }
+
   function indexer(c, source) {
     S.cat = c;
     S.source = source;
-    S.index = R.creerIndex(c);
+    // L'index de recherche est construit à la première recherche (ou juste après l'affichage) :
+    // l'accueil s'affiche plus vite.
+    S.index = null;
     S.outils = new Map(c.outils.map((o) => [o.id, o]));
     S.cats = new Map(c.categories.map((x) => [x.id, x]));
     S.parcoursDe = new Map();
@@ -311,7 +320,7 @@
     const vus = Store.vus.tous().map((id) => S.outils.get(id)).filter(Boolean).slice(0, 10);
     const dates = c.outils.map((o) => o.ajout).sort();
     const nouveaux = dates.length && dates[0] !== dates[dates.length - 1]
-      ? c.outils.filter((o) => o.ajout === dates[dates.length - 1]).slice(0, 10)
+      ? trier(c.outils.filter((o) => o.ajout === dates[dates.length - 1]), "reco").slice(0, 10)
       : [];
     const gratuits = c.outils.filter((o) => o.prix === "gratuit").length;
     return `<div class="accueil">
@@ -329,6 +338,8 @@
         <div class="defile exemples">${EXEMPLES.slice(0, 8).map((q) => `<button type="button" class="exemple" data-act="chercher" data-q="${esc(q)}">${esc(q)}</button>`).join("")}</div>
       </header>
 
+      ${banniereVideo()}
+
       ${vus.length ? `<section class="sec">
         <div class="sec-tete"><h2>Vus récemment</h2></div>
         <div class="defile vus">${vus.map((o) => `<button type="button" class="vu" data-act="outil" data-id="${esc(o.id)}">${logo(o)}<span>${esc(o.nom)}</span></button>`).join("")}</div>
@@ -344,12 +355,8 @@
         </button>`).join("")}</div>
       </section>
 
-      <section class="sec">
-        <div class="sec-tete"><h2>Sélections</h2></div>
-        <div class="collections">${c.collections.map((x) => `<button type="button" class="collection" data-act="col" data-id="${esc(x.id)}">
-          <span>${esc(x.icone)}</span><strong>${esc(x.titre)}</strong><em>${R.filtrer(c.outils, x.filtre).length}</em>
-        </button>`).join("")}</div>
-      </section>
+      ${sectionCollections("profil", "Pour qui ?")}
+      ${sectionCollections("selection", "Sélections")}
 
       <section class="sec">
         <div class="sec-tete"><h2>Catégories</h2><button type="button" class="lien" data-act="onglet" data-tab="explorer">Tout voir</button></div>
@@ -369,6 +376,30 @@
       <p class="pied">Application gratuite, sans publicité ni compte. Prix indicatifs (catalogue du ${esc(dateFr(c.maj))}) : vérifie toujours sur le site officiel.</p>
     </div>`;
   };
+
+  function sectionCollections(type, titre) {
+    const l = S.cat.collections.filter((x) => (x.type || "selection") === type);
+    if (!l.length) return "";
+    return `<section class="sec">
+        <div class="sec-tete"><h2>${titre}</h2></div>
+        <div class="collections">${l.map((x) => `<button type="button" class="collection" data-act="col" data-id="${esc(x.id)}">
+          <span>${esc(x.icone)}</span><strong>${esc(x.titre)}</strong><em>${R.filtrer(S.cat.outils, x.filtre).length}</em>
+        </button>`).join("")}</div>
+      </section>`;
+  }
+
+  function generateursVideo() {
+    return S.cat.outils.filter((o) => o.video);
+  }
+
+  function banniereVideo() {
+    const n = generateursVideo().length;
+    if (n < 3) return "";
+    return `<button type="button" class="banniere" data-act="videos">
+      <span class="banniere-icone">🎬</span>
+      <span class="banniere-texte"><strong>Comparateur de générateurs vidéo</strong><small>${n} générateurs : les meilleurs, les plus rapides, les gratuits</small></span>${I.fleche}
+    </button>`;
+  }
 
   function tuileCat(x) {
     const n = S.cat.outils.filter((o) => o.cat.includes(x.id)).length;
@@ -392,12 +423,9 @@
           </button>`;
         }).join("")}</div>
       </section>
-      <section class="sec">
-        <div class="sec-tete"><h2>Sélections</h2></div>
-        <div class="collections">${c.collections.map((x) => `<button type="button" class="collection" data-act="col" data-id="${esc(x.id)}">
-          <span>${esc(x.icone)}</span><strong>${esc(x.titre)}</strong><em>${R.filtrer(c.outils, x.filtre).length}</em>
-        </button>`).join("")}</div>
-      </section>
+      ${banniereVideo()}
+      ${sectionCollections("profil", "Pour qui ?")}
+      ${sectionCollections("selection", "Sélections")}
       <section class="sec">
         <div class="sec-tete"><h2>Parcours</h2></div>
         <div class="liste-parcours">${c.parcours.map((p) => `<button type="button" class="ligne" data-act="parcours" data-id="${esc(p.id)}">
@@ -426,6 +454,7 @@
     return `${entete(titre)}
     <div class="page">
       <p class="intro">${esc(desc)}</p>
+      ${p.type === "cat" && p.id === "video" ? banniereVideo() : ""}
       ${puceFiltres(p.f)}
       <div id="res">${resultatsListe(p)}</div>
     </div>`;
@@ -434,8 +463,10 @@
   function resultatsListe(p) {
     const base = outilsDe(p.type, p.id);
     const l = trier(appliquerFiltres(base, p.f), p.tri, p.type === "cat" ? p.id : null);
+    const plafond = p.plafond || 40;
     return `<div class="compte"><span>${pluriel(l.length, "outil", "outils")}</span>${selectTri(p.tri)}</div>
-      ${l.length ? `<div class="liste">${l.map(carte).join("")}</div>` : videFiltres()}`;
+      ${l.length ? `<div class="liste">${l.slice(0, plafond).map(carte).join("")}</div>` : videFiltres()}
+      ${l.length > plafond ? `<button type="button" class="bouton secondaire plus" data-act="plus">Afficher ${Math.min(40, l.length - plafond)} de plus</button>` : ""}`;
   }
 
   function videFiltres() {
@@ -473,7 +504,7 @@
         </section>
         <p class="astuce">${I.etincelle} Astuce : écris comme tu parles, par exemple « je veux faire une musique de rap gratuitement ».</p>`;
     }
-    const r = R.chercher(S.index, q);
+    const r = R.chercher(index(), q);
     const f = Object.assign({}, p.f);
     let l = appliquerFiltres(r.resultats.map((x) => x.outil), f);
     if (p.tri !== "pertinence") l = trier(l, p.tri);
@@ -538,10 +569,12 @@
         ${badges.length ? `<div class="puces">${badges.map((b) => `<span class="puce">${esc(b)}</span>`).join("")}</div>` : ""}
       </section>
 
-      <section class="duo">
-        <div class="bloc plus-bloc"><h2>Points forts</h2><ul>${o.forts.map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div>
-        <div class="bloc moins-bloc"><h2>À savoir</h2><ul>${o.limites.map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div>
-      </section>
+      ${o.video ? blocVideo(o) : ""}
+
+      ${o.forts.length || o.limites.length ? `<section class="duo">
+        ${o.forts.length ? `<div class="bloc plus-bloc"><h2>Points forts</h2><ul>${o.forts.map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div>` : ""}
+        ${o.limites.length ? `<div class="bloc moins-bloc"><h2>À savoir</h2><ul>${o.limites.map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div>` : ""}
+      </section>` : ""}
 
       <section class="bloc">
         <h2>Disponible sur</h2>
@@ -564,6 +597,114 @@
         <button type="button" class="lien" data-act="signaler" data-id="${esc(o.id)}">${I.drapeau} Signaler une erreur</button></p>
     </div>`;
   };
+
+  /* ---------------------------------------------------------------- */
+  /* Générateurs vidéo                                                 */
+  /* ---------------------------------------------------------------- */
+
+  const VITESSE = {
+    rapide: { nom: "Rapide", icone: "⚡", rang: 0 },
+    moyenne: { nom: "Moyenne", icone: "⏱️", rang: 1 },
+    lente: { nom: "Lente en gratuit", icone: "🐢", rang: 2 },
+  };
+  const FILTRES_VIDEO = [
+    { cle: "gratuit", nom: "Gratuit ou crédits offerts" },
+    { cle: "rapide", nom: "⚡ Rapides" },
+    { cle: "son", nom: "🔊 Son intégré" },
+    { cle: "img", nom: "Photo → vidéo" },
+    { cle: "k4", nom: "4K" },
+    { cle: "android", nom: "Android" },
+    { cle: "libre", nom: "Open source / PC" },
+  ];
+
+  function etoiles(n) {
+    return n ? "★".repeat(n) + "☆".repeat(5 - n) : "";
+  }
+
+  function resumeVideo(v) {
+    return [v.q ? etoiles(v.q) : "", v.v ? VITESSE[v.v].nom : "", v.res, v.duree, v.son ? "son intégré" : "sans son"].filter(Boolean).join(" · ");
+  }
+
+  function blocVideo(o) {
+    const v = o.video;
+    const lignes = [
+      ["Qualité (notre avis)", v.q ? `<span class="etoiles">${etoiles(v.q)}</span>` : "—"],
+      ["Vitesse", v.v ? `${VITESSE[v.v].icone} ${VITESSE[v.v].nom}` : "—"],
+      ["Définition max.", esc(v.res || "—")],
+      ["Durée d'un clip", esc(v.duree || "—")],
+      ["Son et dialogues", v.son ? "🔊 Oui, générés avec la vidéo" : "Non (à ajouter au montage)"],
+      ["Départ", [v.txt ? "texte" : "", v.img ? "photo / image" : ""].filter(Boolean).join(" ou ") || "—"],
+    ];
+    return `<section class="bloc video-bloc">
+      <h2>🎬 Fiche technique vidéo</h2>
+      <dl class="tech">${lignes.map(([k, x]) => `<div><dt>${k}</dt><dd>${x}</dd></div>`).join("")}</dl>
+      <button type="button" class="lien" data-act="videos">Comparer avec les autres générateurs ${I.fleche}</button>
+    </section>`;
+  }
+
+  function filtrerVideos(l, f) {
+    return l.filter((o) => {
+      const v = o.video;
+      if (f.gratuit && o.prix !== "gratuit" && o.prix !== "freemium") return false;
+      if (f.rapide && v.v !== "rapide") return false;
+      if (f.son && !v.son) return false;
+      if (f.img && !v.img) return false;
+      if (f.k4 && !/4k/i.test(v.res)) return false;
+      if (f.android && !o.plat.includes("android")) return false;
+      if (f.libre && !o.libre) return false;
+      return true;
+    });
+  }
+
+  function trierVideos(l, tri) {
+    const r = l.slice();
+    const gratuit = (o) => PRIX[o.prix].rang;
+    const vitesse = (o) => (o.video.v ? VITESSE[o.video.v].rang : 3);
+    if (tri === "vitesse") r.sort((a, b) => vitesse(a) - vitesse(b) || b.video.q - a.video.q);
+    else if (tri === "gratuit") r.sort((a, b) => gratuit(a) - gratuit(b) || b.video.q - a.video.q || vitesse(a) - vitesse(b));
+    else r.sort((a, b) => b.video.q - a.video.q || vitesse(a) - vitesse(b) || gratuit(a) - gratuit(b));
+    return r;
+  }
+
+  function carteVideo(o) {
+    const v = o.video;
+    return `<article class="carte carte-video" data-act="outil" data-id="${esc(o.id)}" tabindex="0">
+      ${logo(o)}
+      <div class="carte-corps">
+        <div class="carte-tete"><h3>${esc(o.nom)}</h3>${badgePrix(o)}</div>
+        <div class="video-ligne">
+          ${v.q ? `<span class="etoiles" aria-label="Qualité ${v.q} sur 5">${etoiles(v.q)}</span>` : ""}
+          ${v.v ? `<span class="puce vitesse v-${v.v}">${VITESSE[v.v].icone} ${VITESSE[v.v].nom}</span>` : ""}
+          ${v.res ? `<span class="puce">${esc(v.res)}</span>` : ""}
+          ${v.son ? '<span class="puce">🔊 Son</span>' : ""}
+          ${o.libre ? '<span class="puce">Open source</span>' : ""}
+        </div>
+        <p>${esc(o.gratuit || o.resume)}</p>
+      </div>
+      ${boutonFav(o)}
+    </article>`;
+  }
+
+  ECRANS.videos = function (p) {
+    p.f = p.f || {};
+    p.tri = p.tri || "qualite";
+    const n = generateursVideo().length;
+    return `${entete("🎬 Générateurs vidéo")}
+    <div class="page">
+      <p class="intro">${n} générateurs comparés : qualité, vitesse, gratuité, son, définition. Caractéristiques indicatives (octobre 2026) : elles évoluent très vite.</p>
+      <div class="segment tri-video" role="radiogroup" aria-label="Classer par">${[["qualite", "🏆 Qualité"], ["vitesse", "⚡ Vitesse"], ["gratuit", "🎁 Gratuité"]]
+        .map(([v, nom]) => `<button type="button" role="radio" aria-checked="${p.tri === v}" class="${p.tri === v ? "on" : ""}" data-act="tri-video" data-v="${v}">${nom}</button>`).join("")}</div>
+      <div class="filtres">${FILTRES_VIDEO.map((x) => `<button type="button" class="filtre${p.f[x.cle] ? " on" : ""}" data-act="filtre-video" data-cle="${x.cle}" aria-pressed="${!!p.f[x.cle]}">${x.nom}</button>`).join("")}</div>
+      <div id="res">${resultatsVideos(p)}</div>
+    </div>`;
+  };
+
+  function resultatsVideos(p) {
+    const l = trierVideos(filtrerVideos(generateursVideo(), p.f), p.tri);
+    return `<div class="compte"><span>${pluriel(l.length, "générateur", "générateurs")}</span></div>
+      ${l.length ? `<div class="liste">${l.map(carteVideo).join("")}</div>` : videFiltres()}
+      <p class="astuce">${I.etincelle} Astuce : les générateurs « rapides » répondent souvent en moins d'une minute ; en gratuit, les plus demandés (Kling, Sora, Veo) peuvent mettre plusieurs heures.</p>`;
+  }
 
   ECRANS.parcours = function (p) {
     const x = S.cat.parcours.find((y) => y.id === p.id);
@@ -604,8 +745,9 @@
       ["Prix", (o) => badgePrix(o)],
       ["Gratuit", (o) => esc(o.gratuit || "—")],
       ["Tarif", (o) => esc(o.tarif || "—")],
-      ["Points forts", (o) => `<ul>${o.forts.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>`],
-      ["À savoir", (o) => `<ul>${o.limites.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>`],
+      ["Points forts", (o) => (o.forts.length ? `<ul>${o.forts.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : "—")],
+      ["À savoir", (o) => (o.limites.length ? `<ul>${o.limites.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : "—")],
+      ["Vidéo", (o) => (o.video ? esc(resumeVideo(o.video)) : "—")],
       ["Plateformes", (o) => esc(o.plat.map((x) => PLATS[x] || x).join(", "))],
       ["En français", (o) => (o.fr ? "Oui" : "Non")],
       ["Sans compte", (o) => (o.sanscompte ? "Oui" : "Non")],
@@ -619,7 +761,7 @@
           <button type="button" class="cmp-retirer" data-act="retirer-cmp" data-id="${esc(o.id)}" aria-label="Retirer ${esc(o.nom)}">${I.croix}</button>
           <button type="button" class="cmp-outil" data-act="outil" data-id="${esc(o.id)}">${logo(o)}<strong>${esc(o.nom)}</strong></button>
         </div>`).join("")}</div>
-        ${lignes.filter(([titre]) => titre !== "Tarif" || l.some((o) => o.tarif)).map(([titre, f]) => `<div class="cmp-ligne"><h3>${titre}</h3><div class="cmp-cellules">${l.map((o) => `<div class="cmp-cellule">${f(o)}</div>`).join("")}</div></div>`).join("")}
+        ${lignes.filter(([titre]) => (titre !== "Tarif" || l.some((o) => o.tarif)) && (titre !== "Vidéo" || l.some((o) => o.video))).map(([titre, f]) => `<div class="cmp-ligne"><h3>${titre}</h3><div class="cmp-cellules">${l.map((o) => `<div class="cmp-cellule">${f(o)}</div>`).join("")}</div></div>`).join("")}
         <div class="cmp-cellules cmp-boutons">${l.map((o) => `<button type="button" class="bouton secondaire" data-act="site" data-id="${esc(o.id)}">Ouvrir ${I.externe}</button>`).join("")}</div>
       </div>
       ${l.length < Store.comparaison.MAX ? `<p class="astuce">Ajoute ${Store.comparaison.MAX - l.length === 1 ? "une autre IA" : "d'autres IA"} depuis leur fiche pour comparer.</p>` : ""}
@@ -778,6 +920,20 @@
     if (!res) return;
     if (e.ecran === "recherche") res.innerHTML = resultatsRecherche(e.p);
     else if (e.ecran === "liste") res.innerHTML = resultatsListe(e.p);
+    else if (e.ecran === "videos") {
+      res.innerHTML = resultatsVideos(e.p);
+      for (const b of view.querySelectorAll("[data-act='filtre-video']")) {
+        const on = !!e.p.f[b.dataset.cle];
+        b.classList.toggle("on", on);
+        b.setAttribute("aria-pressed", on);
+      }
+      for (const b of view.querySelectorAll("[data-act='tri-video']")) {
+        const on = b.dataset.v === e.p.tri;
+        b.classList.toggle("on", on);
+        b.setAttribute("aria-checked", on);
+      }
+      return;
+    }
     const barre = view.querySelector(".filtres");
     if (barre) barre.outerHTML = puceFiltres(e.p.f || {});
   }
@@ -905,6 +1061,20 @@
       case "parcours":
         aller("parcours", { id });
         break;
+      case "videos":
+        aller("videos", {});
+        break;
+      case "filtre-video":
+        e.p.f = e.p.f || {};
+        e.p.f[el.dataset.cle] = !e.p.f[el.dataset.cle];
+        haptic("tick");
+        majResultats();
+        break;
+      case "tri-video":
+        e.p.tri = el.dataset.v;
+        haptic("tick");
+        majResultats();
+        break;
       case "retour":
         window.appBack();
         break;
@@ -937,7 +1107,7 @@
         majResultats();
         break;
       case "plus":
-        e.p.plafond = (e.p.plafond || 30) + 30;
+        e.p.plafond = (e.p.plafond || (e.ecran === "recherche" ? 30 : 40)) + (e.ecran === "recherche" ? 30 : 40);
         majResultats();
         break;
       case "filtre": {
@@ -1106,6 +1276,8 @@
       return;
     }
     onglet("accueil");
+    // Index prêt avant que l'on tape une recherche, sans retarder le premier affichage.
+    setTimeout(index, 300);
     if (S.reglages.majAuto) setTimeout(() => verifierMaj(false), 1500);
   }
 
