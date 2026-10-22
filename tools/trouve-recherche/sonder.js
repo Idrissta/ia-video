@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 /* Sonde les générateurs gratuits utilisables par le studio de Trouve ton IA (exécuté par la CI,
  * qui a accès à Internet) : disponibilité, temps de réponse, format, protocole.
- * Écrit tools/trouve-recherche/sondes.json et affiche un résumé.
- * Utilisation : node tools/trouve-recherche/sonder.js */
+ * Écrit tools/trouve-recherche/sondes.json (tout) ou sondes-cibles.json (essais ciblés).
+ * Utilisation : node tools/trouve-recherche/sonder.js [tout|cibles] */
 "use strict";
 
 const fs = require("fs");
 const path = require("path");
 
-const SORTIE = path.join(__dirname, "sondes.json");
+const SORTIE = path.join(__dirname, process.argv[2] === "tout" ? "sondes.json" : "sondes-cibles.json");
 const PROMPT = "a red fox running in a snowy forest at sunrise, cinematic";
 const res = {};
 const t0 = Date.now();
@@ -239,13 +239,129 @@ async function huggingface() {
   }
 }
 
+/* ------------------------------------------------------------------ */
+/* Essais ciblés (paramètres exacts relevés au premier passage)        */
+/* ------------------------------------------------------------------ */
+
+const IMG = `https://image.pollinations.ai/prompt/${encodeURIComponent(PROMPT)}?width=576&height=1024&seed=7`;
+const fichierUrl = (url) => ({ path: url, url, orig_name: "image.jpg", mime_type: "image/jpeg", meta: { _type: "gradio.FileData" } });
+
+async function gradio(cle, hote, nom, data, ms) {
+  const debut = Date.now();
+  const r = await appel(`${hote}/gradio_api/call${nom}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ data }) }, 30000);
+  let ev = null;
+  try {
+    ev = JSON.parse(r.corps).event_id;
+  } catch (e) {
+    /* rien */
+  }
+  if (!ev) {
+    note(cle, { envoi: court(r, 600) });
+    return null;
+  }
+  const s = await appel(`${hote}/gradio_api/call${nom}/${ev}`, {}, ms || 300000);
+  const lignes = (s.corps || "").split("\n").filter((l) => /^event:|^data:/.test(l));
+  const fin = lignes.slice(-2);
+  let sortie = null;
+  if (/complete/.test(fin[0] || "")) {
+    try {
+      sortie = JSON.parse(fin[1].slice(5));
+    } catch (e) {
+      /* rien */
+    }
+  }
+  const out = { secondes: Math.round((Date.now() - debut) / 1000), code: s.code, erreur: s.erreur, flux: lignes.slice(-4).map((l) => l.slice(0, 700)) };
+  // Téléchargement du fichier produit (vidéo ou image).
+  const urls = JSON.stringify(sortie || "").match(/https:[^"]+?\.(mp4|webm|png|jpg|jpeg|webp)/g) || [];
+  if (urls[0]) out.fichier = court(await appel(urls[0], {}, 120000), 0);
+  out.url = urls[0];
+  note(cle, out);
+  return sortie;
+}
+
+async function cibles() {
+  const LTX = "https://lightricks-ltx-video-distilled.hf.space";
+  const NEG = "worst quality, inconsistent motion, blurry, jittery, distorted";
+  await Promise.all([
+    (async () => {
+      await gradio("ltx.texte", LTX, "/text_to_video", [PROMPT, NEG, null, null, 768, 448, "text-to-video", 3, 9, 42, true, 1, true], 360000);
+      await gradio("ltx.image", LTX, "/image_to_video", ["the fox starts running, camera follows", NEG, fichierUrl(IMG), null, 768, 448, "image-to-video", 3, 9, 42, true, 1, true], 360000);
+    })(),
+    (async () => {
+      const W = "https://wan-ai-wan2-1.hf.space";
+      const debut = Date.now();
+      await gradio("wan21.envoi", W, "/t2v_generation_async", [PROMPT, "720*1280", false, -1], 60000);
+      for (let i = 0; i < 40 && Date.now() - debut < 900000; i++) {
+        await attendre(15000);
+        const s = await gradio(`wan21.etat.${i}`, W, "/status_refresh", [], 60000);
+        if (s && s[0] && (s[0].video || (s[0].value && s[0].value.video))) break;
+      }
+      note("wan21.duree", Math.round((Date.now() - debut) / 1000));
+    })(),
+    (async () => {
+      await gradio("flux.schnell", "https://black-forest-labs-flux-1-schnell.hf.space", "/infer", [PROMPT, 0, true, 576, 1024, 4], 180000);
+      await gradio("zimage.mrfakename", "https://mrfakename-z-image-turbo.hf.space", "/generate_image", [PROMPT, 1024, 576, 9, 42, true], 180000);
+      const a = await apiGradio("https://tongyi-mai-z-image-turbo.hf.space");
+      note("zimage.tongyi.api", a ? resumeApi(a.info) : null);
+      await gradio("wan22.lightning", "https://saravutw-wan2-2-i2v-lightning-4-8step-custom.hf.space", "/generate_video",
+        [fichierUrl(IMG), null, "the fox starts running through the snow, cinematic", 4, "blurry, low quality", 3.5, 1, 1, 42, true, 5, "UniPCMultistep", 3, "16"], 420000);
+    })(),
+    hordePetit(),
+  ]);
+}
+
+async function hordePetit() {
+  const base = "https://aihorde.net/api/v2";
+  const h = { apikey: "0000000000", "client-agent": "TrouveTonIA:1:github.com/Idrissta/ia-video", "content-type": "application/json" };
+  const debut = Date.now();
+  const job = await appel(base + "/generate/async", {
+    method: "POST",
+    headers: h,
+    body: JSON.stringify({ prompt: PROMPT + " ### blurry, deformed", params: { width: 512, height: 768, steps: 20, n: 1, sampler_name: "k_euler_a", cfg_scale: 6 }, nsfw: false, censor_nsfw: true, r2: true, models: ["ICBINP - I Can't Believe It's Not Photography", "Deliberate", "stable_diffusion"] }),
+  });
+  note("horde2.envoi", court(job, 400));
+  let id = null;
+  try {
+    id = JSON.parse(job.corps).id;
+  } catch (e) {
+    /* rien */
+  }
+  if (!id) return;
+  let etat = null;
+  while (Date.now() - debut < 600000) {
+    await attendre(5000);
+    const c = await appel(`${base}/generate/check/${id}`, { headers: h });
+    try {
+      etat = JSON.parse(c.corps);
+      if (etat.done || etat.faulted) break;
+    } catch (e) {
+      /* réessaie */
+    }
+  }
+  const s = await appel(`${base}/generate/status/${id}`, { headers: h });
+  let img = null;
+  try {
+    const j = JSON.parse(s.corps);
+    img = j.generations && j.generations[0] ? { modele: j.generations[0].model, url: j.generations[0].img } : null;
+  } catch (e) {
+    /* rien */
+  }
+  note("horde2.resultat", { secondes: Math.round((Date.now() - debut) / 1000), etat, img });
+  if (img && img.url) note("horde2.image", court(await appel(img.url), 0));
+}
+
 (async () => {
-  // Les trois services sont indépendants : sondés en parallèle.
-  await Promise.all(
-    [["pollinations", pollinations], ["horde", horde], ["huggingface", huggingface]].map(([nom, f]) =>
-      f().catch((e) => note(`${nom}.erreur`, String(e && e.stack)))
-    )
-  );
+  const mode = process.argv[2] || "cibles";
+  if (mode === "tout") {
+    // Les trois services sont indépendants : sondés en parallèle.
+    await Promise.all(
+      [["pollinations", pollinations], ["horde", horde], ["huggingface", huggingface]].map(([nom, f]) =>
+        f().catch((e) => note(`${nom}.erreur`, String(e && e.stack)))
+      )
+    );
+  } else {
+    await cibles().catch((e) => note("cibles.erreur", String(e && e.stack)));
+  }
   res.duree = Math.round((Date.now() - t0) / 1000);
   res.date = new Date().toISOString();
   fs.writeFileSync(SORTIE, JSON.stringify(res, null, 1) + "\n");

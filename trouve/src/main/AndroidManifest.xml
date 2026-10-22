@@ -2,14 +2,27 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- Origine https locale de WebView, logos des sites et mise à jour du catalogue (facultative). -->
+    <!-- Origine https locale de WebView, logos des sites, mise à jour du catalogue (facultative)
+         et générateurs gratuits du studio. -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Android 8 et 9 seulement : enregistrer les vidéos créées dans la galerie. -->
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="28" />
 
     <queries>
         <!-- Ouverture des sites des outils dans le navigateur. -->
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="https" />
+        </intent>
+        <!-- Onglets intégrés (Custom Tabs) pour créer sur les sites des IA sans quitter l'appli. -->
+        <intent>
+            <action android:name="android.support.customtabs.action.CustomTabsService" />
+        </intent>
+        <!-- Synthèse vocale pour la voix off. -->
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE" />
         </intent>
     </queries>
 

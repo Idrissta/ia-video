@@ -28,7 +28,11 @@ import android.webkit.WebViewClient;
 import android.window.OnBackInvokedCallback;
 import android.window.OnBackInvokedDispatcher;
 
+import org.json.JSONObject;
+
 import java.io.ByteArrayInputStream;
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.HashMap;
@@ -38,7 +42,8 @@ import java.util.Map;
 /**
  * Coque native de Trouve ton IA : affiche l'interface web embarquée (assets/web)
  * en plein écran et lui fournit vibrations, barres système, bouton retour,
- * ouverture des sites dans le navigateur et partage.
+ * ouverture des sites (dans l'appli ou le navigateur), partage et les outils
+ * natifs du studio de création ({@link Studio}).
  */
 public class MainActivity extends Activity {
 
@@ -52,6 +57,7 @@ public class MainActivity extends Activity {
     private static final int BG_LIGHT = 0xFFF5F6FB;
 
     private WebView web;
+    private Studio studio;
     private SharedPreferences prefs;
     private boolean pageReady;
     private boolean backEnabled;
@@ -67,6 +73,7 @@ public class MainActivity extends Activity {
 
         Window window = getWindow();
         setupEdgeToEdge(window);
+        studio = new Studio(this, this::repondre);
 
         web = new WebView(this);
         web.setOverScrollMode(View.OVER_SCROLL_NEVER);
@@ -83,7 +90,8 @@ public class MainActivity extends Activity {
         s.setBuiltInZoomControls(false);
         s.setDisplayZoomControls(false);
         s.setTextZoom(100);
-        s.setMediaPlaybackRequiresUserGesture(true);
+        // Le studio lit les clips générés et la bande-son pendant le montage, longtemps après le toucher.
+        s.setMediaPlaybackRequiresUserGesture(false);
         if (Build.VERSION.SDK_INT >= 33) s.setAlgorithmicDarkeningAllowed(false);
 
         WebView.setWebContentsDebuggingEnabled((getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0);
@@ -250,7 +258,26 @@ public class MainActivity extends Activity {
     }
 
     @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == 7 && studio != null) {
+            studio.autorisation(grantResults.length > 0 && grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED);
+        }
+    }
+
+    /** Réponse d'une opération du studio : appelle window.natif(id, résultat) dans la page. */
+    private void repondre(final int id, final JSONObject resultat) {
+        runOnUiThread(() -> {
+            if (web != null && pageReady) web.evaluateJavascript("window.natif&&natif(" + id + "," + resultat + ")", null);
+        });
+    }
+
+    @Override
     protected void onDestroy() {
+        if (studio != null) {
+            studio.fin();
+            studio = null;
+        }
         if (web != null) {
             web.removeJavascriptInterface("TrouveNative");
             ViewGroup parent = (ViewGroup) web.getParent();
@@ -282,6 +309,25 @@ public class MainActivity extends Activity {
         }
     }
 
+    /** Ouvre le site dans un onglet intégré (Custom Tab) : connexion Google possible, retour direct à l'appli. */
+    private boolean openInApp(Uri uri, boolean dark) {
+        if (uri == null || !isWebLink(uri)) return false;
+        try {
+            Intent tab = new Intent(Intent.ACTION_VIEW, uri);
+            Bundle session = new Bundle();
+            session.putBinder("android.support.customtabs.extra.SESSION", null);
+            tab.putExtras(session);
+            tab.putExtra("android.support.customtabs.extra.TOOLBAR_COLOR", dark ? BG_DARK : BG_LIGHT);
+            tab.putExtra("android.support.customtabs.extra.TITLE_VISIBILITY", 1);
+            tab.putExtra("androidx.browser.customtabs.extra.COLOR_SCHEME", dark ? 2 : 1);
+            tab.putExtra("androidx.browser.customtabs.extra.SHARE_STATE", 1);
+            startActivity(tab);
+            return true;
+        } catch (Exception e) {
+            return openExternal(uri);
+        }
+    }
+
     private void shareText(String subject, String text) {
         Intent send = new Intent(Intent.ACTION_SEND);
         send.setType("text/plain");
@@ -308,6 +354,12 @@ public class MainActivity extends Activity {
         if (p.endsWith(".png")) return "image/png";
         if (p.endsWith(".woff2")) return "font/woff2";
         if (p.endsWith(".txt")) return "text/plain";
+        if (p.endsWith(".jpg") || p.endsWith(".jpeg")) return "image/jpeg";
+        if (p.endsWith(".webp")) return "image/webp";
+        if (p.endsWith(".mp4")) return "video/mp4";
+        if (p.endsWith(".webm")) return "video/webm";
+        if (p.endsWith(".wav")) return "audio/wav";
+        if (p.endsWith(".mp3")) return "audio/mpeg";
         return "application/octet-stream";
     }
 
@@ -330,6 +382,19 @@ public class MainActivity extends Activity {
             }
             if (path == null || path.isEmpty() || "/".equals(path)) path = "/index.html";
             if (path.contains("..")) return error(404, "Not Found");
+            if (path.startsWith("/cache/")) {
+                // Images, clips et voix du studio, servis en même origine (dessin sur canvas possible).
+                File f = studio == null ? null : studio.fichier(path.substring(7));
+                if (f == null || !f.isFile()) return error(404, "Not Found");
+                try {
+                    Map<String, String> headers = new HashMap<>();
+                    headers.put("Cache-Control", "no-store");
+                    headers.put("Content-Length", String.valueOf(f.length()));
+                    return new WebResourceResponse(mimeOf(path), null, 200, "OK", headers, new FileInputStream(f));
+                } catch (IOException e) {
+                    return error(404, "Not Found");
+                }
+            }
             try {
                 InputStream in = getAssets().open("web" + path);
                 String mime = mimeOf(path);
@@ -448,6 +513,64 @@ public class MainActivity extends Activity {
         public void share(final String subject, final String text) {
             if (text == null || text.isEmpty()) return;
             runOnUiThread(() -> shareText(subject, text));
+        }
+
+        @JavascriptInterface
+        public boolean openInApp(final String url, final boolean dark) {
+            if (url == null) return false;
+            final Uri uri = Uri.parse(url);
+            if (!isWebLink(uri)) return false;
+            runOnUiThread(() -> MainActivity.this.openInApp(uri, dark));
+            return true;
+        }
+
+        /* Studio de création */
+
+        @JavascriptInterface
+        public void requete(int id, String methode, String url, String corps, String entetes, int delai) {
+            if (studio != null) studio.requete(id, methode, url, corps, entetes, delai);
+        }
+
+        @JavascriptInterface
+        public void telecharger(int id, String url, String nom) {
+            if (studio != null) studio.telecharger(id, url, nom);
+        }
+
+        @JavascriptInterface
+        public boolean ecrire(String nom, String base64, boolean debut) {
+            return studio != null && studio.ecrire(nom, base64, debut);
+        }
+
+        @JavascriptInterface
+        public void enregistrer(int id, String nom, String type) {
+            if (studio != null) runOnUiThread(() -> studio.enregistrer(id, nom, type));
+        }
+
+        @JavascriptInterface
+        public void partagerFichier(String uri, String type, String texte) {
+            runOnUiThread(() -> {
+                if (studio != null) studio.partager(uri, type, texte);
+            });
+        }
+
+        @JavascriptInterface
+        public void ouvrirFichier(String uri, String type) {
+            runOnUiThread(() -> {
+                if (studio != null) studio.ouvrir(uri, type);
+            });
+        }
+
+        @JavascriptInterface
+        public void voix(int id, String texte, float vitesse, float hauteur, String nom) {
+            if (studio != null) studio.voix(id, texte, vitesse, hauteur, nom);
+        }
+
+        @JavascriptInterface
+        public void ecranAllume(final boolean allume) {
+            runOnUiThread(() -> {
+                if (allume) getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                else getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+            });
         }
     }
 }
