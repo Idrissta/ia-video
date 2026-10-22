@@ -6,7 +6,7 @@ Ce dépôt contient deux applications Android compilées automatiquement par Git
 | --- | --- | --- |
 | **CINÉ-GENESIS** | `film/` | Studio de création IA : images 4K, vidéos 4K (Kling 3.0, LTX-2.3, Veo 3.1…) et films complets montés en 4K sur le téléphone. |
 | **Nova Graph** | `app/` | Calculatrice graphique hors ligne. |
-| **Trouve ton IA** | `trouve/` | Catalogue gratuit de plus de 1000 IA expliquées en français, comparateur de générateurs vidéo et recherche en langage naturel. |
+| **Trouve ton IA** | `trouve/` | Studio gratuit qui crée tes vidéos et images IA dans l'appli, catalogue de plus de 1000 IA expliquées en français et comparateur de générateurs vidéo. |
 
 ## Télécharger les APK
 
@@ -28,19 +28,34 @@ et un tag `v*` crée une *Release* versionnée.
 
 # Trouve ton IA — le catalogue des IA, en français
 
-Application Android gratuite, sans publicité et sans compte, pour trouver l'IA qu'il te faut : décris ce que tu veux faire
-(« enlever le fond d'une photo », « créer une chanson », « réviser mon bac »…) et l'appli te propose les bons outils,
-avec pour chacun ce qui est vraiment gratuit, le prix, les plateformes et les alternatives.
+Application Android gratuite, sans publicité et sans compte, qui **crée elle-même tes vidéos et images IA** et t'aide à
+trouver l'IA qu'il te faut : décris ce que tu veux faire (« enlever le fond d'une photo », « créer une chanson »,
+« réviser mon bac »…) et l'appli te propose les bons outils, avec pour chacun ce qui est vraiment gratuit, le prix, les
+plateformes et les alternatives.
 
 <p align="center">
   <img src="docs/trouve-accueil.png" width="220" alt="Accueil de Trouve ton IA">
+  <img src="docs/trouve-creer.png" width="220" alt="Studio : créer une vidéo IA">
   <img src="docs/trouve-recherche.png" width="220" alt="Recherche en langage naturel">
   <img src="docs/trouve-videos.png" width="220" alt="Comparateur de générateurs vidéo">
-  <img src="docs/trouve-fiche.png" width="220" alt="Fiche d'un outil">
 </p>
 
 ### Fonctionnalités
 
+- **Studio « Créer »** (onglet du milieu) : tu décris ta vidéo, l'appli fait tout, gratuitement et sans compte.
+  1. une IA écrit le scénario (titre, voix off de chaque scène, description des images) ;
+  2. les images sont créées en parallèle par **Pollinations** et **AI Horde** (GPU de bénévoles) ;
+  3. option **« Animer avec une vraie IA vidéo »** : chaque image devient un clip IA de 3 s avec **LTX-Video**
+     (Lightricks, sur Hugging Face), environ 10 s par scène, dans la limite du quota gratuit du serveur ;
+  4. le téléphone monte la vidéo : mouvements de caméra, fondus, titre, sous-titres façon TikTok, **voix off en
+     français** (synthèse vocale d'Android) et **musique composée dans l'appli** (calme, joyeuse, épique, énergique,
+     lo-fi, mystère) ;
+  5. la vidéo (MP4 si le téléphone le permet) s'enregistre dans la galerie (Films › Trouve ton IA) et se partage.
+  Formats 9:16 (TikTok, Shorts, Reels), 16:9 (YouTube) et 1:1 ; 3, 5 ou 8 scènes ; 8 styles (cinéma, réaliste, anime,
+  dessin animé 3D, aquarelle, BD, fantastique, pixel art). Après le montage : changer la musique, les textes, refaire une
+  image ou l'animer, puis remonter. Mode **Image** : 1 à 4 images à enregistrer, ou à animer en vidéo.
+- **Les IA s'ouvrent dans l'appli** (onglet intégré, avec ta connexion Google) pour créer sur Kling, PixVerse, Vidu,
+  Dreamina, Hailuo ou Flow avec leurs crédits gratuits du jour ; réglable pour ouvrir le navigateur à la place.
 - **Plus de 1000 IA** dans 25 catégories (assistants, images, vidéo, montage, voix, musique, études, code, sites sans coder,
   3D, santé et sport, vie quotidienne, argent et droit, IA privées sur ton appareil…), chacune avec une fiche en français :
   résumé, ce qui est gratuit, tarif indicatif, plateformes, alternatives, et pour les plus connues points forts et limites.
@@ -61,20 +76,28 @@ avec pour chacun ce qui est vraiment gratuit, le prix, les plateformes et les al
 - **Fonctionne hors ligne** : le catalogue est intégré à l'APK. Il se **met à jour tout seul** (au plus deux fois par jour)
   depuis `trouve/src/main/assets/web/data/catalogue.json` sur la branche `master` du dépôt : ajouter une IA dans ce
   fichier et augmenter `version` suffit pour qu'elle apparaisse chez tout le monde, sans réinstaller l'appli.
-- Réseau limité : l'appli ne contacte que le catalogue du dépôt et le service de logos de DuckDuckGo (désactivable dans
-  les réglages) ; les sites des outils s'ouvrent dans le navigateur.
+- Réseau limité : la page de l'appli ne contacte que le catalogue du dépôt et le service de logos de DuckDuckGo
+  (désactivable) ; le studio passe par la partie native, limitée aux générateurs gratuits (Pollinations, AI Horde,
+  Hugging Face). Les services gratuits ont leurs limites : une image toutes les 45 s par appareil chez Pollinations
+  (avec un petit logo), file d'attente variable chez AI Horde, quelques clips par jour sur LTX-Video. Leur disponibilité
+  est vérifiée par le workflow **Sonde des générateurs gratuits** (`tools/trouve-recherche/sonder.js`).
 
 ### Architecture
 
 ```
 trouve/src/main/
-├── java/com/idrissta/trouvetonia/MainActivity.java   coque native : WebView plein écran, liens externes, partage, retour
+├── java/com/idrissta/trouvetonia/MainActivity.java   coque native : WebView plein écran, onglets intégrés, partage, retour
+├── java/com/idrissta/trouvetonia/Studio.java         studio : réseau des générateurs, cache, voix off, galerie
 └── assets/web/
     ├── index.html, css/app.css
     ├── data/catalogue.json   catégories, sélections, parcours et outils (un outil par ligne)
     ├── js/search.js          moteur de recherche en français (aussi utilisé par les tests Node)
     ├── js/store.js           favoris, réglages, chargement et mise à jour du catalogue
-    └── js/app.js             écrans, navigation et interactions
+    ├── js/app.js             écrans, navigation et interactions
+    ├── js/natif.js           accès aux outils natifs (avec équivalents navigateur pour le développement)
+    ├── js/generateurs.js     Pollinations, AI Horde et LTX-Video : scénario, images, clips, répartition
+    ├── js/montage.js         montage sur canvas, musique synthétisée, enregistrement vidéo
+    └── js/studio.js          écrans « Créer » et atelier
 ```
 
 Les fiches sont rédigées en français pour l'appli. Les nouveaux outils ont été repérés dans notre propre liste et dans

@@ -118,9 +118,12 @@
     toast.t = setTimeout(() => t.classList.remove("on"), 2600);
   }
 
+  // Ouvre un site : dans un onglet intégré à l'appli (réglage par défaut) ou dans le navigateur.
   function ouvrirLien(url) {
     if (!/^https?:\/\//.test(url)) return;
     try {
+      const sombre = document.documentElement.dataset.theme !== "light";
+      if (native && S.reglages.dansAppli && native.openInApp && native.openInApp(url, sombre)) return;
       if (native && native.openUrl(url)) return;
     } catch (e) {
       /* repli navigateur */
@@ -313,6 +316,8 @@
   /* ---------------------------------------------------------------- */
 
   const ECRANS = {};
+  // Points d'extension : écrans ajoutés par le studio et fonctions appelées après l'affichage d'un écran.
+  const App = (window.App = { apres: {} });
 
   ECRANS.accueil = function () {
     const c = S.cat;
@@ -338,6 +343,7 @@
         <div class="defile exemples">${EXEMPLES.slice(0, 8).map((q) => `<button type="button" class="exemple" data-act="chercher" data-q="${esc(q)}">${esc(q)}</button>`).join("")}</div>
       </header>
 
+      ${banniereStudio()}
       ${banniereVideo()}
 
       ${vus.length ? `<section class="sec">
@@ -390,6 +396,13 @@
 
   function generateursVideo() {
     return S.cat.outils.filter((o) => o.video);
+  }
+
+  function banniereStudio() {
+    return `<button type="button" class="banniere studio-banniere" data-act="studio">
+      <span class="banniere-icone">✨</span>
+      <span class="banniere-texte"><strong>Crée ta vidéo IA, gratuitement</strong><small>Décris ton idée : l'appli fait les images, la voix, la musique et le montage.</small></span>${I.fleche}
+    </button>`;
   }
 
   function banniereVideo() {
@@ -781,6 +794,8 @@
           .map(([v, n]) => `<button type="button" role="radio" aria-checked="${r.theme === v}" class="${r.theme === v ? "on" : ""}" data-act="theme" data-v="${v}">${n}</button>`).join("")}</div>
         <label class="interrupteur"><span><strong>Logos des sites</strong><small>Télécharge le logo de chaque IA (sinon, initiales colorées).</small></span>
           <input type="checkbox" data-act="logos"${r.logos ? " checked" : ""}><i></i></label>
+        <label class="interrupteur"><span><strong>Ouvrir les IA dans l'appli</strong><small>Les sites s'ouvrent dans un onglet intégré, avec ta connexion Google ; sinon, dans le navigateur.</small></span>
+          <input type="checkbox" data-act="dansappli"${r.dansAppli ? " checked" : ""}><i></i></label>
       </section>
 
       <section class="bloc">
@@ -843,6 +858,7 @@
       view.classList.add(anim);
     }
     if (e.ecran === "recherche") brancherRecherche(e);
+    if (App.apres[e.ecran]) App.apres[e.ecran](e);
     retourNatif();
   }
 
@@ -1165,6 +1181,7 @@
         verifierMaj(true);
         break;
       default:
+        if (window.Studio) window.Studio.action(act, el, e, ev);
         break;
     }
   });
@@ -1180,6 +1197,10 @@
     } else if (el.dataset.act === "majauto") {
       S.reglages = Store.reglages.ecrire({ majAuto: el.checked });
       if (el.checked) verifierMaj(false);
+    } else if (el.dataset.act === "dansappli") {
+      S.reglages = Store.reglages.ecrire({ dansAppli: el.checked });
+    } else if (window.Studio) {
+      window.Studio.change(el, e, ev);
     }
   });
 
@@ -1249,6 +1270,9 @@
   /* ---------------------------------------------------------------- */
   /* Démarrage                                                         */
   /* ---------------------------------------------------------------- */
+
+  // Accès pour le studio (js/studio.js) : écrans, navigation et petits outils d'interface.
+  Object.assign(App, { ECRANS, S, aller, retour, rendre, actuel, onglet, esc, entete, I, toast, haptic, pluriel, ouvrirLien, logo, badgePrix, vue: view });
 
   let exemple = 0;
   setInterval(() => {

@@ -216,5 +216,36 @@ for (let i = 0; i < 50; i++) R.chercher(index, "je cherche une ia pour enlever l
 const ms = (Date.now() - t0) / 50;
 verifier(ms < 25, `recherche rapide (${ms.toFixed(1)} ms)`);
 
+/* ------------------------------------------------------------------ */
+/* Studio (montage et générateurs, sans réseau)                        */
+/* ------------------------------------------------------------------ */
+
+const vm = require("vm");
+function charger(fichier, globaux) {
+  const ctx = Object.assign({ console, setTimeout, clearTimeout }, globaux || {});
+  ctx.window = ctx;
+  vm.createContext(ctx);
+  vm.runInContext(fs.readFileSync(path.join(WEB, "js", fichier), "utf8"), ctx, { filename: fichier });
+  return ctx;
+}
+const Mo = charger("montage.js").Montage;
+const Ge = charger("generateurs.js", { Natif: {} }).Generateurs;
+const ch = Mo.chronologie([{ duree: 4 }, { duree: 3 }, { duree: 5 }]);
+verifier(Math.abs(ch.total - (12 - 2 * Mo.TRANSITION)) < 1e-9, "montage : durée totale avec fondus enchaînés");
+verifier(ch.plages[1].debut === 4 - Mo.TRANSITION && ch.plages[2].fin === ch.total, "montage : scènes qui se chevauchent le temps du fondu");
+for (const [k, f] of Object.entries(Mo.FORMATS)) {
+  verifier(f.iw * f.ih <= 768 * 768 && f.iw % 64 === 0 && f.ih % 64 === 0, `format ${k} : taille d'image acceptée par Pollinations (${f.iw}×${f.ih})`);
+  verifier(Math.abs(f.iw / f.ih - f.w / f.h) < 0.01, `format ${k} : images aux proportions de la vidéo`);
+  const [w, h] = Ge.tailleHorde(f.iw, f.ih);
+  verifier(w * h <= 721 * 721 && w % 64 === 0 && h % 64 === 0, `format ${k} : taille acceptée par AI Horde sans compte (${w}×${h})`);
+  const d = Ge.CLIPS[0].data({ prompt: "p", image: "https://x/y.jpg", largeur: f.iw, hauteur: f.ih });
+  verifier(d[4] % 32 === 0 && d[5] % 32 === 0 && Math.abs(d[5] / d[4] - f.w / f.h) < 0.08, `format ${k} : dimensions LTX-Video multiples de 32 (${d[5]}×${d[4]})`);
+}
+const local = Ge.scenarioLocal("Un chat se réveille. Il part en voyage.", 4);
+verifier(local.scenes.length === 4 && local.scenes[0].texte === "Un chat se réveille." && local.scenes[1].texte === "Il part en voyage.", "scénario hors ligne : une phrase par scène");
+verifier(new Set(local.scenes.map((x) => x.prompt)).size === 4, "scénario hors ligne : cadrages différents");
+verifier(Ge.urlPollinations({ prompt: "a fox", largeur: 576, hauteur: 1024, seed: 3 }) === "https://image.pollinations.ai/prompt/a%20fox?width=576&height=1024&seed=3&safe=true", "adresse d'image Pollinations");
+verifier(Object.keys(Mo.AMBIANCES).length >= 6 && Mo.AMBIANCES.aucune && !Mo.AMBIANCES.aucune.bpm, "ambiances musicales, dont « sans musique »");
+
 console.log(`${ok} vérifications réussies, ${ko} échec(s) — ${catalogue.outils.length} outils, ${catalogue.categories.length} catégories, ${catalogue.parcours.length} parcours`);
 process.exit(ko ? 1 : 0);

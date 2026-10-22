@@ -106,6 +106,7 @@
         theme: ["auto", "sombre", "clair"].includes(r.theme) ? r.theme : "auto",
         logos: r.logos !== false,
         majAuto: r.majAuto !== false,
+        dansAppli: r.dansAppli !== false,
       };
     },
     ecrire(patch) {
