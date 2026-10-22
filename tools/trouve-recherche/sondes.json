@@ -1,0 +1,1026 @@
+{
+ "horde.heartbeat": {
+  "code": 200,
+  "ms": 328,
+  "octets": 97,
+  "entetes": {
+   "content-type": "application/json; charset=utf-8",
+   "access-control-allow-origin": "*"
+  },
+  "corps": "{\"message\":\"OK\",\"version\":\"5.1.14\",\"queue\":0,\"threads\":25,\"active_count\":0,\"db_connection\":true}\n"
+ },
+ "horde.modeles": [
+  {
+   "nom": "WAI-NSFW-illustrious-SDXL",
+   "workers": 11,
+   "file": 380600320,
+   "eta": 40
+  },
+  {
+   "nom": "WAI-ANI-NSFW-PONYXL",
+   "workers": 10,
+   "file": 187588608,
+   "eta": 17
+  },
+  {
+   "nom": "stable_diffusion",
+   "workers": 10,
+   "file": 31457280,
+   "eta": 10
+  },
+  {
+   "nom": "Deliberate",
+   "workers": 10,
+   "file": 77971456,
+   "eta": 12
+  },
+  {
+   "nom": "AMPonyXL",
+   "workers": 10,
+   "file": 922746880,
+   "eta": 70
+  },
+  {
+   "nom": "ICBINP - I Can't Believe It's Not Photography",
+   "workers": 9,
+   "file": 95830016,
+   "eta": 16
+  },
+  {
+   "nom": "AlbedoBase XL (SDXL)",
+   "workers": 9,
+   "file": 1017610240,
+   "eta": 136
+  },
+  {
+   "nom": "Juggernaut XL",
+   "workers": 8,
+   "file": 882679808,
+   "eta": 108
+  },
+  {
+   "nom": "Rev Animated",
+   "workers": 8,
+   "file": 0,
+   "eta": 0
+  },
+  {
+   "nom": "CyberRealistic Pony",
+   "workers": 8,
+   "file": 151715840,
+   "eta": 14
+  },
+  {
+   "nom": "Nova Furry Pony",
+   "workers": 8,
+   "file": 145489920,
+   "eta": 17
+  },
+  {
+   "nom": "Flat-2D Animerge",
+   "workers": 8,
+   "file": 0,
+   "eta": 0
+  }
+ ],
+ "horde.envoi": {
+  "code": 403,
+  "ms": 1088,
+  "octets": 244,
+  "entetes": {
+   "content-type": "application/json; charset=utf-8",
+   "retry-after": "0",
+   "access-control-allow-origin": "*",
+   "x-ratelimit-remaining": "1"
+  },
+  "corps": "{\"message\":\"Due to heavy demand, for requests over 721x721 or over the applicable first-order-equivalent sampler work budget the client needs to already have the required kudos. This request requires 8.29 kudos to fulfil.\",\"rc\":\"KudosUpfront\"}\n"
+ },
+ "pollinations.image": {
+  "code": 200,
+  "ms": 7048,
+  "octets": 68394,
+  "entetes": {
+   "content-type": "image/jpeg",
+   "access-control-allow-origin": "*"
+  }
+ },
+ "pollinations.image.immediat": {
+  "code": 402,
+  "ms": 274,
+  "octets": 323,
+  "entetes": {
+   "content-type": "application/json; charset=utf-8",
+   "retry-after": "39",
+   "access-control-allow-origin": "*"
+  },
+  "corps": "{\"status\":402,\"success\":false,\"error\":{\"code\":\"FREE_LIMIT\",\"message\":\"Free limit reached: 1 image every 45 seconds per IP. Retry after 39s, or get unlimited images with a pollen key at https://enter.pollinations.ai/?ref=classic\",\"timestamp\":\"2026-10-22T08:02:42.701Z\",\"fixUrl\":\"https://enter.pollinat"
+ },
+ "hf.video.espaces": [
+  "Wan-AI/Wan2.1 ♥2192 cpu-basic https://wan-ai-wan2-1.hf.space",
+  "Lightricks/ltx-video-distilled ♥1609 zero-a10g https://lightricks-ltx-video-distilled.hf.space",
+  "Wan-AI/Wan2.2-S2V ♥433 cpu-basic https://wan-ai-wan2-2-s2v.hf.space",
+  "Saravutw/WAN2.2_I2V_LIGHTNING_4-8step_custom ♥393 zero-a10g https://saravutw-wan2-2-i2v-lightning-4-8step-custom.hf.space",
+  "alexnasa/Wan2.2-Animate-ZEROGPU ♥365 zero-a10g https://alexnasa-wan2-2-animate-zerogpu.hf.space",
+  "linoyts/FramePack-F1 ♥330 zero-a10g https://linoyts-framepack-f1.hf.space",
+  "tencent/HunyuanVideo-Foley ♥172 zero-a10g https://tencent-hunyuanvideo-foley.hf.space",
+  "multimodalart/Hunyuan-Video-1-5 ♥111 zero-a10g https://multimodalart-hunyuan-video-1-5.hf.space",
+  "alibaba-pai/Wan2.1-Fun-1.3B-InP ♥85 cpu-basic https://alibaba-pai-wan2-1-fun-1-3b-inp.hf.space",
+  "prashant-AI-ML/Wan-2.2-pro-Superb ♥73 zero-a10g https://prashant-ai-ml-wan-2-2-pro-superb.hf.space",
+  "fffiloni/Wan2.1-VACE-1.3B ♥72 cpu-basic https://fffiloni-wan2-1-vace-1-3b.hf.space",
+  "amisima/Wan_2.2_I2V_Studio ♥71 zero-a10g https://amisima-wan-2-2-i2v-studio.hf.space",
+  "preSalesAIAutomation/imagetovideo ♥68 zero-a10g https://presalesaiautomation-imagetovideo.hf.space",
+  "makiblek/Wan_2.2_I2V_14B_Custom_Lora_Wow ♥54 zero-a10g https://makiblek-wan-2-2-i2v-14b-custom-lora-wow.hf.space",
+  "fffiloni/Wan2.1 ♥48 cpu-basic https://fffiloni-wan2-1.hf.space",
+  "vivienfanghua/wan2.2_enhanced_amd ♥47 cpu-basic https://vivienfanghua-wan2-2-enhanced-amd.hf.space",
+  "prithivMLmods/Wan2.2-Fast ♥41 zero-a10g https://prithivmlmods-wan2-2-fast.hf.space",
+  "Upsampler/wan-2-2-14b-image-to-video ♥37 zero-a10g https://upsampler-wan-2-2-14b-image-to-video.hf.space",
+  "liuyuyuil/Wanx2.1_Text_to_Video ♥37 cpu-basic https://liuyuyuil-wanx2-1-text-to-video.hf.space",
+  "tmtanu/wan2.2_14b_i2v_480p_lightning_nsfw_diffusers ♥34 zero-a10g https://tmtanu-wan2-2-14b-i2v-480p-lightning-nsfw-diffusers.hf.space",
+  "zsaxcdssdf/wan2.2_wip ♥27 zero-a10g https://zsaxcdssdf-wan2-2-wip.hf.space",
+  "waloneai/SDXT-Image-To-Video ♥24 cpu-basic https://waloneai-sdxt-image-to-video.hf.space",
+  "DeepRat/LTX-Video-ZeroGPU-Optimized ♥10 zero-a10g https://deeprat-ltx-video-zerogpu-optimized.hf.space",
+  "Upsampler/ltx-video ♥9 zero-a10g https://upsampler-ltx-video.hf.space",
+  "Xenurox/tencent-HunyuanVideo-1.5 ♥8 cpu-basic https://xenurox-tencent-hunyuanvideo-1-5.hf.space"
+ ],
+ "hf.image.espaces": [
+  "black-forest-labs/FLUX.1-dev ♥9575 zero-a10g https://black-forest-labs-flux-1-dev.hf.space",
+  "black-forest-labs/FLUX.1-schnell ♥5158 zero-a10g https://black-forest-labs-flux-1-schnell.hf.space",
+  "mrfakename/Z-Image-Turbo ♥3914 zero-a10g https://mrfakename-z-image-turbo.hf.space",
+  "prithivMLmods/Qwen-Image-Edit-2511-LoRAs-Fast ♥2777 zero-a10g https://prithivmlmods-qwen-image-edit-2511-loras-fast.hf.space",
+  "multimodalart/qwen-image-multiple-angles-3d-camera ♥2702 zero-a10g https://multimodalart-qwen-image-multiple-angles-3d-camera.hf.space",
+  "linoyts/Qwen-Image-Edit-Angles ♥2274 zero-a10g https://linoyts-qwen-image-edit-angles.hf.space",
+  "Tongyi-MAI/Z-Image-Turbo ♥1933 zero-a10g https://tongyi-mai-z-image-turbo.hf.space",
+  "jasperai/Flux.1-dev-Controlnet-Upscaler ♥1703 zero-a10g https://jasperai-flux-1-dev-controlnet-upscaler.hf.space",
+  "black-forest-labs/FLUX.1-Kontext-Dev ♥1646 zero-a10g https://black-forest-labs-flux-1-kontext-dev.hf.space",
+  "DamarJati/FLUX.1-RealismLora ♥1336 zero-a10g https://damarjati-flux-1-realismlora.hf.space",
+  "Qwen/Qwen-Image ♥929 zero-a10g https://qwen-qwen-image.hf.space",
+  "prithivMLmods/Qwen-Image-Edit-2509-LoRAs-Fast ♥908 zero-a10g https://prithivmlmods-qwen-image-edit-2509-loras-fast.hf.space",
+  "Qwen/Qwen-Image-Edit ♥872 zero-a10g https://qwen-qwen-image-edit.hf.space",
+  "kulkas2pintu/QWEN_EDIT_IMAGE ♥719 zero-a10g https://kulkas2pintu-qwen-edit-image.hf.space",
+  "radames/Real-Time-Text-to-Image-SDXL-Lightning ♥617 zero-a10g https://radames-real-time-text-to-image-sdxl-lightning.hf.space"
+ ],
+ "hf.api.Wan-AI/Wan2.1": {
+  "prefixe": "/gradio_api",
+  "api": {
+   "/online_process_change": {
+    "entrees": [],
+    "sorties": [
+     "Generated Video:dict(video: filepath, subtitles: filepath | None)"
+    ]
+   },
+   "/switch_i2v_tab": {
+    "entrees": [],
+    "sorties": []
+   },
+   "/switch_t2v_tab": {
+    "entrees": [],
+    "sorties": []
+   },
+   "/t2v_generation_async": {
+    "entrees": [
+     "prompt:str",
+     "size:Literal['1280*720', '960*960', '720*1280', '1088*832', '832*1088']=\"1280*720\"",
+     "watermark_wan:bool=true",
+     "seed:float=-1"
+    ],
+    "sorties": [
+     "Cost Time(secs):float",
+     "Estimated Waiting Time(secs):float"
+    ]
+   },
+   "/i2v_generation_async": {
+    "entrees": [
+     "prompt:str=\"\"",
+     "image:dict(path: str | None (Path to a local file), url: str | None (Publicly available url or base64 encoded image), size: int | None (Size of image in bytes), orig_name: str | None (Original filename), mime_type: str | None (mime type of image), is_stream: bool (Can always be set to False), meta: dict())",
+     "watermark_wan:bool=true",
+     "seed:float=-1"
+    ],
+    "sorties": [
+     "Cost Time(secs):float",
+     "Estimated Waiting Time(secs):float"
+    ]
+   },
+   "/status_refresh": {
+    "entrees": [],
+    "sorties": [
+     "Generated Video:dict(video: filepath, subtitles: filepath | None)",
+     "Cost Time(secs):float",
+     "Estimated Waiting Time(secs):float",
+     ":float"
+    ]
+   },
+   "/status_refresh_1": {
+    "entrees": [],
+    "sorties": [
+     "Generated Video:dict(video: filepath, subtitles: filepath | None)",
+     "Cost Time(secs):float",
+     "Estimated Waiting Time(secs):float",
+     ":float"
+    ]
+   }
+  }
+ },
+ "hf.api.Lightricks/ltx-video-distilled": {
+  "prefixe": "/gradio_api",
+  "api": {
+   "/handle_image_upload_for_dims": {
+    "entrees": [
+     "image_filepath:dict(path: str | None (Path to a local file), url: str | None (Publicly available url or base64 encoded image), size: int | None (Size of image in bytes), orig_name: str | None (Original filename), mime_type: str | None (mime type of image), is_stream: bool (Can always be set to False), meta: dict(str, Any))",
+     "current_h:float=512",
+     "current_w:float=704"
+    ],
+    "sorties": [
+     "Height:float",
+     "Width:float"
+    ]
+   },
+   "/handle_video_upload_for_dims": {
+    "entrees": [
+     "video_filepath:dict(video: filepath, subtitles: filepath | None)",
+     "current_h:float=512",
+     "current_w:float=704"
+    ],
+    "sorties": [
+     "Height:float",
+     "Width:float"
+    ]
+   },
+   "/update_task_image": {
+    "entrees": [],
+    "sorties": [
+     "task:Literal['text-to-video', 'image-to-video', 'video-to-video']"
+    ]
+   },
+   "/update_task_text": {
+    "entrees": [],
+    "sorties": [
+     "task:Literal['text-to-video', 'image-to-video', 'video-to-video']"
+    ]
+   },
+   "/text_to_video": {
+    "entrees": [
+     "prompt:str=\"A majestic dragon flying over a medieva",
+     "negative_prompt:str=\"worst quality, inconsistent motion, blu",
+     "input_image_filepath:str=null",
+     "input_video_filepath:str=null",
+     "height_ui:float=512",
+     "width_ui:float=704",
+     "mode:Literal['text-to-video', 'image-to-video', 'video-to-video']=\"image-to-video\"",
+     "duration_ui:float=2",
+     "ui_frames_to_use:float=9",
+     "seed_ui:int=42",
+     "randomize_seed:bool=true",
+     "ui_guidance_scale:float=1",
+     "improve_texture_flag:bool=true"
+    ],
+    "sorties": [
+     "Generated Video:dict(video: filepath, subtitles: filepath | None)",
+     "Seed:int"
+    ]
+   },
+   "/image_to_video": {
+    "entrees": [
+     "prompt:str=\"The creature from the image starts to m",
+     "negative_prompt:str=\"worst quality, inconsistent motion, blu",
+     "input_image_filepath:dict(path: str | None (Path to a local file), url: str | None (Publicly available url or base64 encoded image), size: int | None (Size of image in bytes), orig_name: str | None (Original filename), mime_type: str | None (mime type of image), is_stream: bool (Can always be set to False), meta: dict(str, Any))=null",
+     "input_video_filepath:str=null",
+     "height_ui:float=512",
+     "width_ui:float=704",
+     "mode:Literal['text-to-video', 'image-to-video', 'video-to-video']=\"image-to-video\"",
+     "duration_ui:float=2",
+     "ui_frames_to_use:float=9",
+     "seed_ui:int=42",
+     "randomize_seed:bool=true",
+     "ui_guidance_scale:float=1",
+     "improve_texture_flag:bool=true"
+    ],
+    "sorties": [
+     "Generated Video:dict(video: filepath, subtitles: filepath | None)",
+     "Seed:int"
+    ]
+   },
+   "/video_to_video": {
+    "entrees": [
+     "prompt:str=\"Change the style to cinematic anime\"",
+     "negative_prompt:str=\"worst quality, inconsistent motion, blu",
+     "input_image_filepath:str=null",
+     "input_video_filepath:dict(video: filepath, subtitles: filepath | None)=null",
+     "height_ui:float=512",
+     "width_ui:float=704",
+     "mode:Literal['text-to-video', 'image-to-video', 'video-to-video']=\"image-to-video\"",
+     "duration_ui:float=2",
+     "ui_frames_to_use:float=9",
+     "seed_ui:int=42",
+     "randomize_seed:bool=true",
+     "ui_guidance_scale:float=1",
+     "improve_texture_flag:bool=true"
+    ],
+    "sorties": [
+     "Generated Video:dict(video: filepath, subtitles: filepath | None)",
+     "Seed:int"
+    ]
+   }
+  }
+ },
+ "hf.essai.Lightricks/ltx-video-distilled/text_to_video": {
+  "secondes": 1,
+  "code": 200,
+  "flux": [
+   "event: error",
+   "data: null"
+  ]
+ },
+ "hf.api.Wan-AI/Wan2.2-S2V": {
+  "prefixe": "/gradio_api",
+  "api": {
+   "/predict": {
+    "entrees": [
+     "ref_img:dict(path: str | None (Path to a local file), url: str | None (Publicly available url or base64 encoded image), size: int | None (Size of image in bytes), orig_name: str | None (Original filename), mime_type: str | None (mime type of image), is_stream: bool (Can always be set to False), meta: dict(str, Any))",
+     "audio:filepath",
+     "resolution:Literal['480P', '720P']=\"480P\""
+    ],
+    "sorties": [
+     "Output Video(输出视频):dict(video: filepath, subtitles: filepath | None)"
+    ]
+   }
+  }
+ },
+ "hf.api.Saravutw/WAN2.2_I2V_LIGHTNING_4-8step_custom": {
+  "prefixe": "/gradio_api",
+  "api": {
+   "/generate_video": {
+    "entrees": [
+     "input_image:dict(path: str | None (Path to a local file), url: str | None (Publicly available url or base64 encoded image), size: int | None (Size of image in bytes), orig_name: str | None (Original filename), mime_type: str | None (mime type of image), is_stream: bool (Can always be set to False), meta: dict(str, Any))",
+     "last_image:dict(path: str | None (Path to a local file), url: str | None (Publicly available url or base64 encoded image), size: int | None (Size of image in bytes), orig_name: str | None (Original filename), mime_type: str | None (mime type of image), is_stream: bool (Can always be set to False), meta: dict(str, Any))",
+     "prompt:str=\"high quality, high resolution, cinemati",
+     "steps:float=4",
+     "negative_prompt:str=\"blurry, low quality, chaotic, deformed,",
+     "duration_seconds:float=3.5",
+     "guidance_scale:float=1",
+     "guidance_scale_2:float=1",
+     "seed:float=42",
+     "randomize_seed:bool=true",
+     "quality:float=5",
+     "scheduler:Literal['FlowMatchEulerDiscrete', 'SASolver', 'DEISMultistep', 'DPMSolverMultistepInverse', 'UniPCMultistep', 'DPMSolverMultistep', 'DPMSolverSinglestep']=\"UniPCMultistep\"",
+     "flow_shift:float=3",
+     "frame_multiplier:Literal['16', '32', '64', '128']=16",
+     "safe_mode:bool=false",
+     "video_component:bool=true"
+    ],
+    "sorties": [
+     "Generated Video:filepath",
+     "Download Video:filepath",
+     "Seed:float"
+    ]
+   },
+   "/extract_frame": {
+    "entrees": [
+     "video_path:filepath",
+     "timestamp:float=0"
+    ],
+    "sorties": [
+     "Input Image:dict(path: str | None (Path to a local file), url: str | None (Publicly available url or base64 encoded image), size: int | None (Size of image in bytes), orig_name: str | None (Original filename), mime_type: str | None (mime type of image), is_stream: bool (Can always be set to False), meta: dict(str, Any))"
+    ]
+   }
+  }
+ },
+ "hf.essai.Saravutw/WAN2.2_I2V_LIGHTNING_4-8step_custom/generate_video": {
+  "secondes": 0,
+  "code": 200,
+  "flux": [
+   "event: error",
+   "data: null"
+  ]
+ },
+ "hf.api.alexnasa/Wan2.2-Animate-ZEROGPU": {
+  "prefixe": "/gradio_api",
+  "api": {
+   "/animate_scene": {
+    "entrees": [
+     "input_video:filepath",
+     "max_duration_s:float=2",
+     "edited_frame:filepath",
+     "rc_str:str=\"Character Swap\"",
+     "resolution_choice:str=\"Low Res\""
+    ],
+    "sorties": [
+     "Edited Video:filepath",
+     "Pose Video:filepath",
+     "Background Video:filepath",
+     "Mask Video:filepath",
+     "Face Video:filepath"
+    ]
+   }
+  }
+ },
+ "hf.api.linoyts/FramePack-F1": {
+  "prefixe": "/gradio_api",
+  "api": {
+   "/lambda": {
+    "entrees": [
+     "x:int"
+    ],
+    "sorties": [
+     "Prompt:str"
+    ]
+   },
+   "/process": {
+    "entrees": [
+     "input_image:dict(background: filepath | None, layers: list[filepath], composite: filepath | None, id: str | None)",
+     "prompt:str=\"\"",
+     "t2v:bool=false",
+     "n_prompt:str=\"\"",
+     "seed:int=31337",
+     "total_second_length:float=2",
+     "latent_window_size:float=9",
+     "steps:float=25",
+     "cfg:float=1",
+     "gs:float=10",
+     "rs:float=0",
+     "gpu_memory_preservation:float=6",
+     "use_teacache:bool=true",
+     "mp4_crf:float=16"
+    ],
+    "sorties": [
+     "Finished Frames:dict(video: filepath, subtitles: filepath | None)",
+     "Next Latents:dict(path: str | None (Path to a local file), url: str | None (Publicly available url or base64 encoded image), size: int | None (Size of image in bytes), orig_name: str | None (Original filename), mime_type: str | None (mime type of image), is_stream: bool (Can always be set to False), meta: dict(str, Any))",
+     "value_31:str",
+     "value_32:str"
+    ]
+   },
+   "/end_process": {
+    "entrees": [],
+    "sorties": []
+   }
+  }
+ },
+ "hf.essai.linoyts/FramePack-F1/process": {
+  "secondes": 0,
+  "code": 200,
+  "flux": [
+   "event: error",
+   "data: null"
+  ]
+ },
+ "pollinations.texte": {
+  "code": 200,
+  "ms": 10933,
+  "octets": 44,
+  "entetes": {
+   "content-type": "text/plain; charset=utf-8",
+   "access-control-allow-origin": "*"
+  },
+  "corps": "Renards rusés, charme sauvage, à l’aventure."
+ },
+ "hf.api.tencent/HunyuanVideo-Foley": {
+  "prefixe": "/gradio_api",
+  "api": {
+   "/update_visibility": {
+    "entrees": [
+     "sample_nums:float=1"
+    ],
+    "sorties": [
+     "Sample 1:dict(video: filepath, subtitles: filepath | None)",
+     "Sample 2:dict(video: filepath, subtitles: filepath | None)",
+     "Sample 3:dict(video: filepath, subtitles: filepath | None)",
+     "Sample 4:dict(video: filepath, subtitles: filepath | None)",
+     "Sample 5:dict(video: filepath, subtitles: filepath | None)",
+     "Sample 6:dict(video: filepath, subtitles: filepath | None)"
+    ]
+   },
+   "/process_inference": {
+    "entrees": [
+     "video_file:dict(video: filepath, subtitles: filepath | None)",
+     "text_prompt:str",
+     "neg_prompt:str",
+     "guidance_scale:float=4.5",
+     "inference_steps:float=50",
+     "sample_nums:float=1"
+    ],
+    "sorties": [
+     "Sample 1:dict(video: filepath, subtitles: filepath | None)",
+     "Sample 2:dict(video: filepath, subtitles: filepath | None)",
+     "Sample 3:dict(video: filepath, subtitles: filepath | None)",
+     "Sample 4:dict(video: filepath, subtitles: filepath | None)",
+     "Sample 5:dict(video: filepath, subtitles: filepath | None)",
+     "Sample 6:dict(video: filepath, subtitles: filepath | None)",
+     "Status:str"
+    ]
+   },
+   "/handler": {
+    "entrees": [],
+    "sorties": [
+     "Upload Video:dict(video: filepath, subtitles: filepath | None)",
+     "🎯 Audio Description (English):str",
+     "🚫 Negative Prompt:str",
+     "Sample 1:dict(video: filepath, subtitles: filepath | None)",
+     "Status:str"
+    ]
+   },
+   "/handler_1": {
+    "entrees": [],
+    "sorties": [
+     "Upload Video:dict(video: filepath, subtitles: filepath | None)",
+     "🎯 Audio Description (English):str",
+     "🚫 Negative Prompt:str",
+     "Sample 1:dict(video: filepath, subtitles: filepath | None)",
+     "Status:str"
+    ]
+   },
+   "/handler_2": {
+    "entrees": [],
+    "sorties": [
+     "Upload Video:dict(video: filepath, subtitles: filepath | None)",
+     "🎯 Audio Description (English):str",
+     "🚫 Negative Prompt:str",
+     "Sample 1:dict(video: filepath, subtitles: filepath | None)",
+     "Status:str"
+    ]
+   },
+   "/handler_3": {
+    "entrees": [],
+    "sorties": [
+     "Upload Video:dict(video: filepath, subtitles: filepath | None)",
+     "🎯 Audio Description (English):str",
+     "🚫 Negative Prompt:str",
+     "Sample 1:dict(video: filepath, subtitles: filepath | None)",
+     "Status:str"
+    ]
+   },
+   "/handler_4": {
+    "entrees": [],
+    "sorties": [
+     "Upload Video:dict(video: filepath, subtitles: filepath | None)",
+     "🎯 Audio Description (English):str",
+     "🚫 Negative Prompt:str",
+     "Sample 1:dict(video: filepath, subtitles: filepath | None)",
+     "Status:str"
+    ]
+   },
+   "/handler_5": {
+    "entrees": [],
+    "sorties": [
+     "Upload Video:dict(video: filepath, subtitles: filepath | None)",
+     "🎯 Audio Description (English):str",
+     "🚫 Negative Prompt:str",
+     "Sample 1:dict(video: filepath, subtitles: filepath | None)",
+     "Status:str"
+    ]
+   },
+   "/handler_6": {
+    "entrees": [],
+    "sorties": [
+     "Upload Video:dict(video: filepath, subtitles: filepath | None)",
+     "🎯 Audio Description (English):str",
+     "🚫 Negative Prompt:str",
+     "Sample 1:dict(video: filepath, subtitles: filepath | None)",
+     "Status:str"
+    ]
+   },
+   "/handler_7": {
+    "entrees": [],
+    "sorties": [
+     "Upload Video:dict(video: filepath, subtitles: filepath | None)",
+     "🎯 Audio Description (English):str",
+     "🚫 Negative Prompt:str",
+     "Sample 1:dict(video: filepath, subtitles: filepath | None)",
+     "Status:str"
+    ]
+   }
+  }
+ },
+ "hf.essai.tencent/HunyuanVideo-Foley/process_inference": {
+  "secondes": 0,
+  "code": 200,
+  "flux": [
+   "event: error",
+   "data: null"
+  ]
+ },
+ "hf.api.multimodalart/Hunyuan-Video-1-5": {
+  "prefixe": "/gradio_api",
+  "api": {
+   "/generate": {
+    "entrees": [
+     "input_image:dict(path: str | None (Path to a local file), url: str | None (Publicly available url or base64 encoded image), size: int | None (Size of image in bytes), orig_name: str | None (Original filename), mime_type: str | None (mime type of image), is_stream: bool (Can always be set to False), meta: dict(str, Any))",
+     "prompt:str",
+     "length:float=61",
+     "steps:float=6",
+     "shift:float=5",
+     "seed:int=-1",
+     "guidance:float=1",
+     "do_rewrite:bool=true"
+    ],
+    "sorties": [
+     "Result:filepath",
+     "Actual Prompt Used:str"
+    ]
+   }
+  }
+ },
+ "hf.essai.multimodalart/Hunyuan-Video-1-5/generate": {
+  "secondes": 0,
+  "code": 200,
+  "flux": [
+   "event: error",
+   "data: null"
+  ]
+ },
+ "hf.api.alibaba-pai/Wan2.1-Fun-1.3B-InP": {
+  "prefixe": "/gradio_api",
+  "api": {
+   "/select_template": {
+    "entrees": [],
+    "sorties": [
+     "The image at the beginning of the video (图片到视频的开始图片):dict(path: str | None (Path to a local file), url: str | None (Publicly available url or base64 encoded image), size: int | None (Size of image in bytes), orig_name: str | None (Original filename), mime_type: str | None (mime type of image), is_stream: bool (Can always be set to False), meta: dict())",
+     "Prompt (正向提示词):str"
+    ]
+   },
+   "/lambda": {
+    "entrees": [],
+    "sorties": [
+     "Seed (随机种子):str"
+    ]
+   },
+   "/upload_generation_method": {
+    "entrees": [
+     "generation_method:Literal['Video Generation', 'Image Generation']=\"Video Generation\""
+    ],
+    "sorties": [
+     "Animation length (视频帧数):float"
+    ]
+   },
+   "/upload_source_method": {
+    "entrees": [
+     "source_method:Literal['Text to Video (文本到视频)', 'Image to Video (图片到视频)']=\"Text to Video (文本到视频)\""
+    ],
+    "sorties": [
+     "The image at the beginning of the video (图片到视频的开始图片):dict(path: str | None (Path to a local file), url: str | None (Publicly available url or base64 encoded image), size: int | None (Size of image in bytes), orig_name: str | None (Original filename), mime_type: str | None (mime type of image), is_stream: bool (Can always be set to False), meta: dict())",
+     "The image at the ending of the video (图片到视频的结束图片[非必需, Optional]):dict(path: str | None (Path to a local file), url: str | None (Publicly available url or base64 encoded image), size: int | None (Size of image in bytes), orig_name: str | None (Original filename), mime_type: str | None (mime type of image), is_stream: bool (Can always be set to False), meta: dict())",
+     "The video to convert (视频转视频的参考视频):dict(video: filepath, subtitles: filepath | None)",
+     "The mask of the video to inpaint (视频重新绘制的mask[非必需, Optional]):dict(path: str | None (Path to a local file), url: str | None (Publicly available url or base64 encoded image), size: int | None (Size of image in bytes), orig_name: str | None (Original filename), mime_type: str | None (mime type of image), is_stream: bool (Can always be set to False), meta: dict())"
+    ]
+   },
+   "/upload_resize_method": {
+    "entrees": [
+     "resize_method:Literal['Generate by', 'Resize according to Reference']=\"Generate by\""
+    ],
+    "sorties": [
+     "Width (视频宽度):float",
+     "Height (视频高度):float",
+     "Base Resolution of Pretrained Models:Literal['512', '768', '960']"
+    ]
+   },
+   "/generate": {
+    "entrees": [
+     "diffusion_transformer_dropdown:Literal['models/Diffusion_Transformer/Wan2.1-Fun-1.3B-InP']=\"models/Diffusion_Transformer/Wan2.1-Fun",
+     "base_model_dropdown:Literal['none']=\"none\"",
+     "lora_model_dropdown:Literal['none']=\"none\"",
+     "lora_alpha_slider:float=0.55",
+     "prompt_textbox:str=\"A young woman with beautiful and clear ",
+     "negative_prompt_textbox:str=\"色调艳丽，过曝，静态，细节模糊不清，字幕，风格，作品，画作，画面，静止，整体发",
+     "sampler_dropdown:Literal['Flow']=\"Flow\"",
+     "sample_step_slider:float=40",
+     "resize_method:Literal['Generate by', 'Resize according to Reference']=\"Generate by\"",
+     "width_slider:float=832",
+     "height_slider:float=480",
+     "base_resolution:Literal['512', '768', '960']=512",
+     "generation_method:Literal['Video Generation', 'Image Generation']=\"Video Generation\"",
+     "length_slider:float=29",
+     "cfg_scale_slider:float=6",
+     "start_image:dict(path: str | None (Path to a local file), url: str | None (Publicly available url or base64 encoded image), size: int | None (Size of image in bytes), orig_name: str | None (Original filename), mime_type: str | None (mime type of image), is_stream: bool (Can always be set to False), meta: dict())",
+     "end_image:dict(path: str | None (Path to a local file), url: str | None (Publicly available url or base64 encoded image), size: int | None (Size of image in bytes), orig_name: str | None (Original filename), mime_type: str | None (mime type of image), is_stream: bool (Can always be set to False), meta: dict())",
+     "validation_video:dict(video: filepath, subtitles: filepath | None)",
+     "validation_video_mask:dict(path: str | None (Path to a local file), url: str | None (Publicly available url or base64 encoded image), size: int | None (Size of image in bytes), orig_name: str | None (Original filename), mime_type: str | None (mime type of image), is_stream: bool (Can always be set to False), meta: dict())",
+     "denoise_strength:float=0.7",
+     "seed_textbox:str=\"43\""
+    ],
+    "sorties": [
+     "Generated Image (生成图片):dict(path: str | None (Path to a local file), url: str | None (Publicly available url or base64 encoded image), size: int | None (Size of image in bytes), orig_name: str | None (Original filename), mime_type: str | None (mime type of image), is_stream: bool (Can always be set to False), meta: dict())",
+     "Generated Animation (生成视频):dict(video: filepath, subtitles: filepath | None)",
+     "Generation Info (生成信息):str"
+    ]
+   }
+  }
+ },
+ "hf.essai.alibaba-pai/Wan2.1-Fun-1.3B-InP/generate": {
+  "secondes": 1,
+  "code": 200,
+  "flux": [
+   "event: complete",
+   "data: [{\"visible\": false, \"value\": null, \"__type__\": \"update\"}, {\"visible\": true, \"value\": null, \"__type__\": \"update\"}, \"Error. error information is invalid literal for int() with base 10: 'a red fox running in a snowy forest at sunrise, cinematic'\"]"
+  ]
+ },
+ "hf.api.prashant-AI-ML/Wan-2.2-pro-Superb": {
+  "prefixe": "/gradio_api",
+  "api": {
+   "/generate_video": {
+    "entrees": [
+     "input_image:dict(path: str | None (Path to a local file), url: str | None (Publicly available url or base64 encoded image), size: int | None (Size of image in bytes), orig_name: str | None (Original filename), mime_type: str | None (mime type of image), is_stream: bool (Can always be set to False), meta: dict(str, Any))",
+     "last_image:dict(path: str | None (Path to a local file), url: str | None (Publicly available url or base64 encoded image), size: int | None (Size of image in bytes), orig_name: str | None (Original filename), mime_type: str | None (mime type of image), is_stream: bool (Can always be set to False), meta: dict(str, Any))",
+     "prompt:str=\"make this image come alive, cinematic m",
+     "steps:float=6",
+     "negative_prompt:str=\"色调艳丽, 过曝, 静态, 细节模糊不清, 字幕, 风格, 作品, 画作, 画",
+     "duration_seconds:float=3.5",
+     "guidance_scale:float=1",
+     "guidance_scale_2:float=1",
+     "seed:float=42",
+     "randomize_seed:bool=true",
+     "quality:float=6",
+     "scheduler:Literal['FlowMatchEulerDiscrete', 'SASolver', 'DEISMultistep', 'DPMSolverMultistepInverse', 'UniPCMultistep', 'DPMSolverMultistep', 'DPMSolverSinglestep']=\"UniPCMultistep\"",
+     "flow_shift:float=3",
+     "frame_multiplier:Literal['16', '32', '64', '128']=16",
+     "safe_mode:bool=true",
+     "video_component:bool=true"
+    ],
+    "sorties": [
+     "Generated Video:dict(video: filepath, subtitles: filepath | None)",
+     "⬇️Export/Download Video:filepath",
+     "Seed:float"
+    ]
+   },
+   "/extract_frame": {
+    "entrees": [
+     "video_path:dict(video: filepath, subtitles: filepath | None)",
+     "timestamp:float=0"
+    ],
+    "sorties": [
+     "Input Image:dict(path: str | None (Path to a local file), url: str | None (Publicly available url or base64 encoded image), size: int | None (Size of image in bytes), orig_name: str | None (Original filename), mime_type: str | None (mime type of image), is_stream: bool (Can always be set to False), meta: dict(str, Any))"
+    ]
+   }
+  }
+ },
+ "hf.essai.prashant-AI-ML/Wan-2.2-pro-Superb/generate_video": {
+  "secondes": 0,
+  "code": 200,
+  "flux": [
+   "event: error",
+   "data: null"
+  ]
+ },
+ "hf.api.black-forest-labs/FLUX.1-dev": {
+  "prefixe": "/gradio_api",
+  "api": {
+   "/infer": {
+    "entrees": [
+     "prompt:str",
+     "seed:float=0",
+     "randomize_seed:bool=true",
+     "width:float=1024",
+     "height:float=1024",
+     "guidance_scale:float=3.5",
+     "num_inference_steps:float=28"
+    ],
+    "sorties": [
+     "Result:dict(path: str | None (Path to a local file), url: str | None (Publicly available url or base64 encoded image), size: int | None (Size of image in bytes), orig_name: str | None (Original filename), mime_type: str | None (mime type of image), is_stream: bool (Can always be set to False), meta: dict(str, Any))",
+     "Seed:float"
+    ]
+   }
+  }
+ },
+ "hf.api.black-forest-labs/FLUX.1-schnell": {
+  "prefixe": "/gradio_api",
+  "api": {
+   "/infer": {
+    "entrees": [
+     "prompt:str",
+     "seed:float=0",
+     "randomize_seed:bool=true",
+     "width:float=1024",
+     "height:float=1024",
+     "num_inference_steps:float=4"
+    ],
+    "sorties": [
+     "Result:dict(path: str | None (Path to a local file), url: str | None (Publicly available url or base64 encoded image), size: int | None (Size of image in bytes), orig_name: str | None (Original filename), mime_type: str | None (mime type of image), is_stream: bool (Can always be set to False), meta: dict(str, Any))",
+     "Seed:float"
+    ]
+   }
+  }
+ },
+ "hf.api.mrfakename/Z-Image-Turbo": {
+  "prefixe": "/gradio_api",
+  "api": {
+   "/toggle_seed": {
+    "entrees": [
+     "randomize:bool=true"
+    ],
+    "sorties": [
+     "Seed:int"
+    ]
+   },
+   "/generate_image": {
+    "entrees": [
+     "prompt:str",
+     "height:float=1024",
+     "width:float=1024",
+     "num_inference_steps:float=9",
+     "seed:int=42",
+     "randomize_seed:bool=true"
+    ],
+    "sorties": [
+     "Generated Image:filepath",
+     "Seed used:float"
+    ]
+   },
+   "/generate_image_1": {
+    "entrees": [
+     "prompt:str",
+     "height:float=1024",
+     "width:float=1024",
+     "num_inference_steps:float=9",
+     "seed:int=42",
+     "randomize_seed:bool=true"
+    ],
+    "sorties": [
+     "Generated Image:filepath",
+     "Seed used:float"
+    ]
+   }
+  }
+ },
+ "hf.api.prithivMLmods/Qwen-Image-Edit-2511-LoRAs-Fast": {
+  "prefixe": "/gradio_api",
+  "api": {
+   "/check_safety": {
+    "entrees": [
+     "prompt:str"
+    ],
+    "sorties": [
+     "1st:dict(str, Any)"
+    ]
+   },
+   "/edit_image": {
+    "entrees": [
+     "images_b64_json:str",
+     "prompt:str",
+     "lora_adapter:str",
+     "seed:int",
+     "randomize_seed:bool",
+     "guidance_scale:float",
+     "steps:int"
+    ],
+    "sorties": [
+     "1st:dict(str, Any)"
+    ]
+   },
+   "/load_example": {
+    "entrees": [
+     "idx:float"
+    ],
+    "sorties": [
+     "1st:dict(str, Any)"
+    ]
+   }
+  }
+ },
+ "hf.api.multimodalart/qwen-image-multiple-angles-3d-camera": {
+  "prefixe": "/gradio_api",
+  "api": {
+   "/update_prompt_from_sliders": {
+    "entrees": [
+     "azimuth:float=0",
+     "elevation:float=0",
+     "distance:float=1"
+    ],
+    "sorties": [
+     "Generated Prompt:str"
+    ]
+   },
+   "/update_prompt_from_sliders_1": {
+    "entrees": [
+     "azimuth:float=0",
+     "elevation:float=0",
+     "distance:float=1"
+    ],
+    "sorties": [
+     "Generated Prompt:str"
+    ]
+   },
+   "/update_prompt_from_sliders_2": {
+    "entrees": [
+     "azimuth:float=0",
+     "elevation:float=0",
+     "distance:float=1"
+    ],
+    "sorties": [
+     "Generated Prompt:str"
+    ]
+   },
+   "/sync_3d_to_sliders": {
+    "entrees": [
+     "camera_value:str={\"azimuth\":0,\"elevation\":0,\"distance\":1}"
+    ],
+    "sorties": [
+     "Azimuth (Horizontal Rotation):float",
+     "Elevation (Vertical Angle):float",
+     "Distance:float",
+     "Generated Prompt:str"
+    ]
+   },
+   "/sync_sliders_to_3d": {
+    "entrees": [
+     "azimuth:float=0",
+     "elevation:float=0",
+     "distance:float=1"
+    ],
+    "sorties": [
+     "value_7:str"
+    ]
+   },
+   "/sync_sliders_to_3d_1": {
+    "entrees": [
+     "azimuth:float=0",
+     "elevation:float=0",
+     "distance:float=1"
+    ],
+    "sorties": [
+     "value_7:str"
+    ]
+   },
+   "/sync_sliders_to_3d_2": {
+    "entrees": [
+     "azimuth:float=0",
+     "elevation:float=0",
+     "distance:float=1"
+    ],
+    "sorties": [
+     "value_7:str"
+    ]
+   },
+   "/infer_camera_edit": {
+    "entrees": [
+     "image:filepath",
+     "azimuth:float=0",
+     "elevation:float=0",
+     "distance:float=1",
+     "seed:float=0",
+     "randomize_seed:bool=true",
+     "guidance_scale:float=1",
+     "num_inference_steps:float=4",
+     "height:float=1024",
+     "width:float=1024"
+    ],
+    "sorties": [
+     "Output Image:filepath",
+     "Seed:float",
+     "Generated Prompt:str"
+    ]
+   },
+   "/update_dimensions_on_upload": {
+    "entrees": [
+     "image:filepath"
+    ],
+    "sorties": [
+     "Width:float",
+     "Height:float"
+    ]
+   },
+   "/update_3d_image": {
+    "entrees": [
+     "image:filepath"
+    ],
+    "sorties": [
+     "value_7:str"
+    ]
+   },
+   "/lambda": {
+    "entrees": [],
+    "sorties": [
+     "value_7:str"
+    ]
+   }
+  }
+ },
+ "pollinations.texte.openai": {
+  "code": 200,
+  "ms": 11972,
+  "octets": 1709,
+  "entetes": {
+   "content-type": "application/json; charset=utf-8",
+   "access-control-allow-origin": "*"
+  },
+  "corps": "{\"id\":\"pllns_6081d76f90f8f2e08985270582c29d43\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"{\\\"scenes\\\":[{\\\"texte\\\":\\\"Au cœur d’un paysage enneigé, un renard solitaire se faufile parmi les flocons.\\\",\\\"image\\\":\\\"A lone red fox sneaking through soft, powdery snow in a wide, quiet forest clearing, snowflakes gently drifting.\\\"},{\\\"texte\\\":\\\"Les branches des arbres, couvertes de neige, créent un plafond neigeux tandis que le renard avance prudemment.\\\",\\\"image\\\":\\\"Snow-covered tree branches forming a frosted canopy over a quiet forest trail, a fox cautiously walking beneath.\\\"},{\\\"texte\\\":\\\"Soudain, le renard s’arrête, l’odeur du feu de camp parfumant l’air, les bêtes du camp se cachent dans l’ombre.\\\",\\\"image\\\":\\\"A sudden stop by a fox as a campfire emits warm, smoky aroma, with hidden camp animals peeking from shadows.\\\"},{\\\"texte\\\":\\\"Le renard bondit de joie en rencontrant un groupe de musiciens, leurs guitares réchauffant l’atmosphère glaciale.\\\",\\\"image\\\":\\\"A joyful fox leaping towards a group of musicians playing guitars beside a crackling campfire, warmth contrasting the cold scenery.\\\"}]}\",\"reasoning\":\"We need to output JSON only. The user wants to cut the idea \\\"un renard dans la neige\\\" into 4 scenes. Provide an array of scene objects with keys \\\"texte\\\" and \\\"image\\\". The \\\"texte\\\" is voice-over French phrase. \\\"image\\\" is a prompt in English. Should be straightforward. Provide JSON with scenes array of 4 objects. Ensure syntactically correct JSON.\","
+ },
+ "pollinations.modeles": {
+  "code": 200,
+  "ms": 19,
+  "octets": 286,
+  "entetes": {
+   "content-type": "application/json; charset=utf-8",
+   "access-control-allow-origin": "*"
+  },
+  "corps": "[{\"name\":\"openai-fast\",\"description\":\"GPT-OSS 20B Reasoning LLM (OVH)\",\"reasoning\":true,\"tier\":\"anonymous\",\"community\":false,\"input_modalities\":[\"text\"],\"output_modalities\":[\"text\"],\"tools\":true,\"aliases\":[\"openai\",\"gpt-oss\",\"gpt-oss-20b\",\"ovh-reasoning\"],\"vision\":false,\"audio\":false}]"
+ },
+ "pollinations.gen": {
+  "code": 401,
+  "ms": 424,
+  "octets": 264,
+  "entetes": {
+   "content-type": "application/json",
+   "access-control-allow-origin": "*"
+  },
+  "corps": "{\"success\":false,\"error\":{\"message\":\"A valid API key is required. Get one at https://enter.pollinations.ai/keys, or buy one with USDC (x402) at https://enter.pollinations.ai/api/x402/keys\",\"code\":\"UNAUTHORIZED\",\"timestamp\":\"2026-10-22T08:03:37.072Z\"},\"status\":401}"
+ },
+ "duree": 62,
+ "date": "2026-10-22T08:03:37.085Z"
+}
