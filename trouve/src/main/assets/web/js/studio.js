@@ -163,7 +163,7 @@
     const l = SITES_VIDEO.map((id) => App.S.outils.get(id)).filter(Boolean);
     if (!l.length) return "";
     return `<section class="sec"><div class="sec-tete"><h2>Ou crée sur les sites d'IA vidéo</h2></div>
-      <p class="intro">Meilleure qualité avec leurs crédits gratuits du jour. Ils s'ouvrent dans l'appli ; un compte gratuit est demandé.</p>
+      <p class="intro">Meilleure qualité avec leurs crédits gratuits du jour. Ils s'ouvrent dans l'appli ; crée ton compte gratuit avec un e-mail (Google ne permet pas sa connexion dans une autre appli).</p>
       <div class="grille-cats large">${l
         .map((o) => `<button type="button" class="tuile large" data-act="site" data-id="${esc(o.id)}">${App.logo(o)}<span class="tuile-texte"><strong>${esc(o.nom)}</strong><small>${esc(o.gratuit || o.resume)}</small></span>${I.externe}</button>`)
         .join("")}</div>

@@ -16,10 +16,6 @@
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="https" />
         </intent>
-        <!-- Onglets intégrés (Custom Tabs) pour créer sur les sites des IA sans quitter l'appli. -->
-        <intent>
-            <action android:name="android.support.customtabs.action.CustomTabsService" />
-        </intent>
         <!-- Synthèse vocale pour la voix off. -->
         <intent>
             <action android:name="android.intent.action.TTS_SERVICE" />
@@ -47,5 +43,11 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <!-- Navigateur intégré : les sites des IA s'ouvrent sans quitter l'appli. -->
+        <activity
+            android:name=".NavigateurActivity"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|uiMode|density|fontScale|locale|layoutDirection"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
     </application>
 </manifest>

@@ -42,7 +42,7 @@ import java.util.Map;
 /**
  * Coque native de Trouve ton IA : affiche l'interface web embarquée (assets/web)
  * en plein écran et lui fournit vibrations, barres système, bouton retour,
- * ouverture des sites (dans l'appli ou le navigateur), partage et les outils
+ * ouverture des sites (navigateur intégré ou navigateur du téléphone), partage et les outils
  * natifs du studio de création ({@link Studio}).
  */
 public class MainActivity extends Activity {
@@ -309,19 +309,14 @@ public class MainActivity extends Activity {
         }
     }
 
-    /** Ouvre le site dans un onglet intégré (Custom Tab) : connexion Google possible, retour direct à l'appli. */
+    /** Ouvre le site d'une IA dans le navigateur intégré à l'appli ({@link NavigateurActivity}). */
     private boolean openInApp(Uri uri, boolean dark) {
         if (uri == null || !isWebLink(uri)) return false;
         try {
-            Intent tab = new Intent(Intent.ACTION_VIEW, uri);
-            Bundle session = new Bundle();
-            session.putBinder("android.support.customtabs.extra.SESSION", null);
-            tab.putExtras(session);
-            tab.putExtra("android.support.customtabs.extra.TOOLBAR_COLOR", dark ? BG_DARK : BG_LIGHT);
-            tab.putExtra("android.support.customtabs.extra.TITLE_VISIBILITY", 1);
-            tab.putExtra("androidx.browser.customtabs.extra.COLOR_SCHEME", dark ? 2 : 1);
-            tab.putExtra("androidx.browser.customtabs.extra.SHARE_STATE", 1);
-            startActivity(tab);
+            Intent nav = new Intent(this, NavigateurActivity.class);
+            nav.putExtra(NavigateurActivity.EXTRA_URL, uri.toString());
+            nav.putExtra(NavigateurActivity.EXTRA_SOMBRE, dark);
+            startActivity(nav);
             return true;
         } catch (Exception e) {
             return openExternal(uri);

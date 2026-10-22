@@ -794,7 +794,7 @@
           .map(([v, n]) => `<button type="button" role="radio" aria-checked="${r.theme === v}" class="${r.theme === v ? "on" : ""}" data-act="theme" data-v="${v}">${n}</button>`).join("")}</div>
         <label class="interrupteur"><span><strong>Logos des sites</strong><small>Télécharge le logo de chaque IA (sinon, initiales colorées).</small></span>
           <input type="checkbox" data-act="logos"${r.logos ? " checked" : ""}><i></i></label>
-        <label class="interrupteur"><span><strong>Ouvrir les IA dans l'appli</strong><small>Les sites s'ouvrent dans un onglet intégré, avec ta connexion Google ; sinon, dans le navigateur.</small></span>
+        <label class="interrupteur"><span><strong>Ouvrir les IA dans l'appli</strong><small>Les sites s'ouvrent dans le navigateur intégré, sans quitter l'appli ; sinon, dans Chrome.</small></span>
           <input type="checkbox" data-act="dansappli"${r.dansAppli ? " checked" : ""}><i></i></label>
       </section>
 

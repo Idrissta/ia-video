@@ -54,8 +54,10 @@ plateformes et les alternatives.
   Formats 9:16 (TikTok, Shorts, Reels), 16:9 (YouTube) et 1:1 ; 3, 5 ou 8 scènes ; 8 styles (cinéma, réaliste, anime,
   dessin animé 3D, aquarelle, BD, fantastique, pixel art). Après le montage : changer la musique, les textes, refaire une
   image ou l'animer, puis remonter. Mode **Image** : 1 à 4 images à enregistrer, ou à animer en vidéo.
-- **Les IA s'ouvrent dans l'appli** (onglet intégré, avec ta connexion Google) pour créer sur Kling, PixVerse, Vidu,
-  Dreamina, Hailuo ou Flow avec leurs crédits gratuits du jour ; réglable pour ouvrir le navigateur à la place.
+- **Les IA s'ouvrent dans l'appli**, dans un navigateur intégré (barre pour fermer, recharger ou passer dans Chrome) :
+  créer sur Kling, PixVerse, Vidu, Dreamina, Hailuo ou Flow avec leurs crédits gratuits du jour, envoyer une photo,
+  télécharger ses créations (Téléchargements › Trouve ton IA), rester connecté. Google n'autorisant pas la connexion à un
+  compte Google dans une autre appli, l'appli conseille l'e-mail ou propose Chrome. Réglable pour ouvrir Chrome à la place.
 - **Plus de 1000 IA** dans 25 catégories (assistants, images, vidéo, montage, voix, musique, études, code, sites sans coder,
   3D, santé et sport, vie quotidienne, argent et droit, IA privées sur ton appareil…), chacune avec une fiche en français :
   résumé, ce qui est gratuit, tarif indicatif, plateformes, alternatives, et pour les plus connues points forts et limites.
@@ -86,7 +88,8 @@ plateformes et les alternatives.
 
 ```
 trouve/src/main/
-├── java/com/idrissta/trouvetonia/MainActivity.java   coque native : WebView plein écran, onglets intégrés, partage, retour
+├── java/com/idrissta/trouvetonia/MainActivity.java   coque native : WebView plein écran, partage, retour
+├── java/com/idrissta/trouvetonia/NavigateurActivity.java  navigateur intégré pour les sites des IA
 ├── java/com/idrissta/trouvetonia/Studio.java         studio : réseau des générateurs, cache, voix off, galerie
 └── assets/web/
     ├── index.html, css/app.css
