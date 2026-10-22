@@ -6,6 +6,7 @@ Ce dépôt contient deux applications Android compilées automatiquement par Git
 | --- | --- | --- |
 | **CINÉ-GENESIS** | `film/` | Studio de création IA : images 4K, vidéos 4K (Kling 3.0, LTX-2.3, Veo 3.1…) et films complets montés en 4K sur le téléphone. |
 | **Nova Graph** | `app/` | Calculatrice graphique hors ligne. |
+| **Trouve ton IA** | `trouve/` | Studio gratuit qui crée tes vidéos et images IA dans l'appli, catalogue de plus de 1000 IA expliquées en français et comparateur de générateurs vidéo. |
 
 ## Télécharger les APK
 
@@ -18,6 +19,99 @@ Ce dépôt contient deux applications Android compilées automatiquement par Git
 Ouvrez le lien depuis le téléphone, puis le fichier `.apk`, et autorisez l'installation depuis cette source si Android le demande
 (Android 8.0 ou plus récent). Les APK sont aussi disponibles comme artefacts de chaque exécution (onglet **Actions**),
 et un tag `v*` crée une *Release* versionnée.
+
+**Trouve ton IA** a son propre workflow (**APK Trouve ton IA**) et sa propre version [**trouve-latest**](../../releases/tag/trouve-latest) :
+
+- `TrouveTonIA.apk` — `https://github.com/Idrissta/ia-video/releases/download/trouve-latest/TrouveTonIA.apk`
+
+---
+
+# Trouve ton IA — le catalogue des IA, en français
+
+Application Android gratuite, sans publicité et sans compte, qui **crée elle-même tes vidéos et images IA** et t'aide à
+trouver l'IA qu'il te faut : décris ce que tu veux faire (« enlever le fond d'une photo », « créer une chanson »,
+« réviser mon bac »…) et l'appli te propose les bons outils, avec pour chacun ce qui est vraiment gratuit, le prix, les
+plateformes et les alternatives.
+
+<p align="center">
+  <img src="docs/trouve-accueil.png" width="220" alt="Accueil de Trouve ton IA">
+  <img src="docs/trouve-creer.png" width="220" alt="Studio : créer une vidéo IA">
+  <img src="docs/trouve-recherche.png" width="220" alt="Recherche en langage naturel">
+  <img src="docs/trouve-videos.png" width="220" alt="Comparateur de générateurs vidéo">
+</p>
+
+### Fonctionnalités
+
+- **Studio « Créer »** (onglet du milieu) : tu décris ta vidéo, l'appli fait tout, gratuitement et sans compte.
+  1. une IA écrit le scénario (titre, voix off de chaque scène, description des images) ;
+  2. les images sont créées en parallèle par **Pollinations** et **AI Horde** (GPU de bénévoles) ;
+  3. option **« Animer avec une vraie IA vidéo »** : chaque image devient un clip IA de 3 s avec **LTX-Video**
+     (Lightricks, sur Hugging Face), environ 10 s par scène, dans la limite du quota gratuit du serveur ;
+  4. le téléphone monte la vidéo : mouvements de caméra, fondus, titre, sous-titres façon TikTok, **voix off en
+     français** (synthèse vocale d'Android) et **musique composée dans l'appli** (calme, joyeuse, épique, énergique,
+     lo-fi, mystère) ;
+  5. la vidéo (MP4 si le téléphone le permet) s'enregistre dans la galerie (Films › Trouve ton IA) et se partage.
+  Formats 9:16 (TikTok, Shorts, Reels), 16:9 (YouTube) et 1:1 ; 3, 5 ou 8 scènes ; 8 styles (cinéma, réaliste, anime,
+  dessin animé 3D, aquarelle, BD, fantastique, pixel art). Après le montage : changer la musique, les textes, refaire une
+  image ou l'animer, puis remonter. Mode **Image** : 1 à 4 images à enregistrer, ou à animer en vidéo.
+- **Les IA s'ouvrent dans l'appli**, dans un navigateur intégré (barre pour fermer, recharger ou passer dans Chrome) :
+  créer sur Kling, PixVerse, Vidu, Dreamina, Hailuo ou Flow avec leurs crédits gratuits du jour, envoyer une photo,
+  télécharger ses créations (Téléchargements › Trouve ton IA), rester connecté. Google n'autorisant pas la connexion à un
+  compte Google dans une autre appli, l'appli conseille l'e-mail ou propose Chrome. Réglable pour ouvrir Chrome à la place.
+- **Plus de 1000 IA** dans 25 catégories (assistants, images, vidéo, montage, voix, musique, études, code, sites sans coder,
+  3D, santé et sport, vie quotidienne, argent et droit, IA privées sur ton appareil…), chacune avec une fiche en français :
+  résumé, ce qui est gratuit, tarif indicatif, plateformes, alternatives, et pour les plus connues points forts et limites.
+- **Comparateur de générateurs vidéo** : 45 générateurs (Kling, Veo/Flow, Sora, Runway, Hailuo, PixVerse, Vidu, Dreamina,
+  Wan, LTX, FramePack…) classés par qualité, vitesse ou gratuité, avec filtres « gratuit », « rapides », « son intégré »,
+  « photo → vidéo », « 4K », « Android », « open source / PC ». Chaque fiche vidéo indique définition, durée d'un clip,
+  son, vitesse et départ texte ou image. Une recherche comme « vidéo IA gratuite et rapide » met les plus rapides en tête.
+- **Recherche en langage naturel** hors ligne : accents, pluriels, synonymes (« diapo » → présentation), fautes de frappe
+  (« chatgtp », « mid journey ») et intentions (« gratuit », « sans compte », « sur mon téléphone », « hors ligne »)
+  qui proposent automatiquement le bon filtre.
+- **Parcours pas à pas** : créer une vidéo YouTube, faire une vidéo IA gratuite et rapide, composer une chanson, réaliser un court-métrage IA, réviser un examen,
+  lancer sa marque, créer une appli sans coder, vendre en ligne, décrocher un emploi.
+- **Sélections** : 100 % gratuites, vidéo IA gratuite, sans inscription, applis Android, open source, made in France,
+  coups de cœur, et des sélections **« Pour qui ? »** (étudiants, enseignants, créateurs, vendeurs, développeurs, artistes,
+  musiciens, pros, famille).
+- **Filtres et tri** (gratuit, version gratuite, sans compte, Android, en français, open source), **favoris**,
+  **comparateur** jusqu'à 3 outils, historique des recherches, partage d'une fiche, thème sombre ou clair.
+- **Fonctionne hors ligne** : le catalogue est intégré à l'APK. Il se **met à jour tout seul** (au plus deux fois par jour)
+  depuis `trouve/src/main/assets/web/data/catalogue.json` sur la branche `master` du dépôt : ajouter une IA dans ce
+  fichier et augmenter `version` suffit pour qu'elle apparaisse chez tout le monde, sans réinstaller l'appli.
+- Réseau limité : la page de l'appli ne contacte que le catalogue du dépôt et le service de logos de DuckDuckGo
+  (désactivable) ; le studio passe par la partie native, limitée aux générateurs gratuits (Pollinations, AI Horde,
+  Hugging Face). Les services gratuits ont leurs limites : une image toutes les 45 s par appareil chez Pollinations
+  (avec un petit logo), file d'attente variable chez AI Horde, quelques clips par jour sur LTX-Video. Leur disponibilité
+  est vérifiée par le workflow **Sonde des générateurs gratuits** (`tools/trouve-recherche/sonder.js`).
+
+### Architecture
+
+```
+trouve/src/main/
+├── java/com/idrissta/trouvetonia/MainActivity.java   coque native : WebView plein écran, partage, retour
+├── java/com/idrissta/trouvetonia/NavigateurActivity.java  navigateur intégré pour les sites des IA
+├── java/com/idrissta/trouvetonia/Studio.java         studio : réseau des générateurs, cache, voix off, galerie
+└── assets/web/
+    ├── index.html, css/app.css
+    ├── data/catalogue.json   catégories, sélections, parcours et outils (un outil par ligne)
+    ├── js/search.js          moteur de recherche en français (aussi utilisé par les tests Node)
+    ├── js/store.js           favoris, réglages, chargement et mise à jour du catalogue
+    ├── js/app.js             écrans, navigation et interactions
+    ├── js/natif.js           accès aux outils natifs (avec équivalents navigateur pour le développement)
+    ├── js/generateurs.js     Pollinations, AI Horde et LTX-Video : scénario, images, clips, répartition
+    ├── js/montage.js         montage sur canvas, musique synthétisée, enregistrement vidéo
+    └── js/studio.js          écrans « Créer » et atelier
+```
+
+Les fiches sont rédigées en français pour l'appli. Les nouveaux outils ont été repérés dans notre propre liste et dans
+des listes publiques sur GitHub (steven2358/awesome-generative-ai, filipecalegario/awesome-generative-ai,
+mahseema/awesome-ai-tools, eudk/awesome-ai-tools — seuls les noms et adresses ont servi), puis leurs sites officiels visités un par un par le workflow **Trouve ton IA — recherche** (`tools/trouve-recherche/`, résultats
+dans `resultats.json`) ; les sites injoignables ou fermés ont été écartés. Prix et caractéristiques vidéo sont indicatifs :
+ils changent vite, l'appli invite à vérifier sur le site officiel.
+
+Développer dans un navigateur : `python3 -m http.server 8000 -d trouve/src/main/assets/web`.
+Tests : `node tools/test-trouve.js` (validité du catalogue et pertinence de la recherche) ;
+`node tools/trouve-liens.js` vérifie que les sites officiels répondent (réseau requis).
 
 ---
 
@@ -141,6 +235,7 @@ Prérequis : JDK 17 et le SDK Android (Android Studio les fournit).
 ./gradlew assembleRelease      # → app/…/app-release.apk et film/…/film-release.apk
 ./gradlew :app:installDebug    # installe Nova Graph sur un appareil connecté
 ./gradlew :film:installDebug   # installe CINÉ-GENESIS
+./gradlew :trouve:installDebug # installe Trouve ton IA
 ```
 
 Ou ouvrez simplement le dossier dans Android Studio.

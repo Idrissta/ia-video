@@ -1,0 +1,51 @@
+name: Recherche Trouve ton IA
+
+# Visite les sites candidats pour enrichir le catalogue (la CI a accès à Internet)
+# et enregistre le résultat sur la même branche.
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - "tools/trouve-recherche/candidats.json"
+      - "tools/trouve-recherche/visiter.js"
+      - ".github/workflows/trouve-recherche.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: trouve-recherche-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  visiter:
+    name: Visiter les sites
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: There's An AI For That (structure publique)
+        continue-on-error: true
+        run: node tools/trouve-recherche/visiter.js taaft
+
+      - name: Sites candidats
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node tools/trouve-recherche/visiter.js sites
+
+      - name: Enregistrer les résultats sur la branche
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tools/trouve-recherche/resultats.json
+          git commit -m "Recherche Trouve ton IA : résultats des visites [skip ci]" || exit 0
+          git pull --rebase origin "${GITHUB_REF_NAME}"
+          git push origin "HEAD:${GITHUB_REF_NAME}"

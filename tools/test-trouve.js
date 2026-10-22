@@ -1,0 +1,251 @@
+#!/usr/bin/env node
+/* Tests hors ligne de Trouve ton IA : validité du catalogue et pertinence du moteur de recherche.
+ * Utilisation : node tools/test-trouve.js */
+"use strict";
+
+const fs = require("fs");
+const path = require("path");
+
+const WEB = path.join(__dirname, "..", "trouve", "src", "main", "assets", "web");
+const R = require(path.join(WEB, "js", "search.js"));
+const catalogue = JSON.parse(fs.readFileSync(path.join(WEB, "data", "catalogue.json"), "utf8"));
+
+let ok = 0;
+let ko = 0;
+function verifier(cond, msg) {
+  if (cond) ok++;
+  else {
+    ko++;
+    console.error("✗ " + msg);
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Catalogue                                                           */
+/* ------------------------------------------------------------------ */
+
+const PRIX = ["gratuit", "freemium", "essai", "payant", "nc"];
+const PLATS = ["web", "android", "ios", "windows", "mac", "linux", "extension"];
+const BOOLS = ["fr", "sanscompte", "libre", "local", "choix"];
+const CHAMPS = new Set(["id", "nom", "par", "url", "cat", "prix", "tarif", "gratuit", "resume", "desc", "forts", "limites", "tags", "plat", "ajout", "video", ...BOOLS]);
+const VITESSES = ["rapide", "moyenne", "lente"];
+
+verifier(catalogue.format === 1, "format du catalogue = 1");
+verifier(Number.isInteger(catalogue.version) && catalogue.version >= 1, "version entière");
+verifier(/^\d{4}-\d{2}-\d{2}$/.test(catalogue.maj), "date de mise à jour AAAA-MM-JJ");
+
+const cats = new Map(catalogue.categories.map((c) => [c.id, c]));
+verifier(cats.size === catalogue.categories.length, "identifiants de catégories uniques");
+for (const c of catalogue.categories) {
+  verifier(c.nom && c.icone && c.desc && Array.isArray(c.mots) && c.mots.length >= 5, `catégorie ${c.id} complète`);
+}
+
+const ids = new Set();
+const urls = new Set();
+for (const o of catalogue.outils) {
+  const id = o.id;
+  verifier(/^[a-z0-9-]+$/.test(id || ""), `identifiant valide : ${id}`);
+  verifier(!ids.has(id), `identifiant unique : ${id}`);
+  ids.add(id);
+  for (const k of Object.keys(o)) verifier(CHAMPS.has(k), `${id} : champ inconnu « ${k} »`);
+  for (const k of ["nom", "par", "url", "resume", "desc"]) verifier(typeof o[k] === "string" && o[k].trim().length > 1, `${id} : ${k} renseigné`);
+  let u = null;
+  try {
+    u = new URL(o.url);
+  } catch (e) {
+    /* vérifié ci-dessous */
+  }
+  verifier(u && u.protocol === "https:", `${id} : URL https valide`);
+  verifier(!urls.has(o.url), `${id} : URL unique`);
+  urls.add(o.url);
+  verifier(Array.isArray(o.cat) && o.cat.length >= 1 && o.cat.every((c) => cats.has(c)), `${id} : catégories connues`);
+  verifier(new Set(o.cat).size === o.cat.length, `${id} : catégories sans doublon`);
+  verifier(PRIX.includes(o.prix), `${id} : prix connu (${o.prix})`);
+  verifier(o.prix === "payant" || o.prix === "nc" || (typeof o.gratuit === "string" && o.gratuit.length > 5), `${id} : ce qui est gratuit est décrit`);
+  verifier(o.tarif === undefined || typeof o.tarif === "string", `${id} : tarif texte`);
+  verifier(o.resume.length <= 110, `${id} : résumé court (${o.resume.length} caractères)`);
+  verifier(o.desc.length >= 60 && o.desc.length <= 420, `${id} : description de taille raisonnable (${o.desc.length})`);
+  verifier(Array.isArray(o.forts) && o.forts.every((s) => typeof s === "string" && s), `${id} : points forts`);
+  verifier(Array.isArray(o.limites) && o.limites.every((s) => typeof s === "string" && s), `${id} : limites`);
+  if (o.choix) verifier(o.forts.length >= 1 && o.limites.length >= 1, `${id} : un coup de cœur a des points forts et des limites`);
+  verifier(Array.isArray(o.tags) && o.tags.length >= 3, `${id} : au moins 3 mots-clés`);
+  verifier(Array.isArray(o.plat) && o.plat.length >= 1 && o.plat.every((p) => PLATS.includes(p)), `${id} : plateformes connues`);
+  verifier(/^\d{4}-\d{2}-\d{2}$/.test(o.ajout || ""), `${id} : date d'ajout`);
+  for (const b of BOOLS) verifier(o[b] === undefined || o[b] === true, `${id} : ${b} vaut true ou est absent`);
+  if (o.local) verifier(o.plat.some((p) => p !== "web" && p !== "extension"), `${id} : un outil hors ligne s'installe (appli ou logiciel)`);
+  if (o.video) {
+    const v = o.video;
+    verifier(o.cat.includes("video"), `${id} : fiche vidéo dans la catégorie vidéo`);
+    verifier(Object.keys(v).every((k) => ["q", "v", "res", "duree", "son", "img", "txt"].includes(k)), `${id} : fiche vidéo sans champ inconnu`);
+    verifier(Number.isInteger(v.q) && v.q >= 1 && v.q <= 5, `${id} : qualité vidéo de 1 à 5`);
+    verifier(VITESSES.includes(v.v), `${id} : vitesse vidéo connue`);
+    verifier(typeof v.res === "string" && v.res && typeof v.duree === "string" && v.duree, `${id} : définition et durée renseignées`);
+    verifier(["son", "img", "txt"].every((k) => typeof v[k] === "boolean") && (v.img || v.txt), `${id} : départ texte ou image`);
+  }
+}
+
+for (const c of catalogue.categories) {
+  const n = catalogue.outils.filter((o) => o.cat.includes(c.id)).length;
+  verifier(n >= 3, `catégorie ${c.id} : au moins 3 outils (${n})`);
+}
+
+for (const col of catalogue.collections) {
+  const n = R.filtrer(catalogue.outils, col.filtre).length;
+  verifier(col.titre && col.icone && n >= 5, `collection ${col.id} : au moins 5 outils (${n})`);
+  verifier(col.type === undefined || col.type === "profil" || col.type === "selection", `collection ${col.id} : type connu`);
+  for (const id of col.filtre.ids || []) verifier(ids.has(id), `collection ${col.id} : outil « ${id} » présent dans le catalogue`);
+}
+
+for (const p of catalogue.parcours) {
+  verifier(p.titre && p.icone && p.intro && p.etapes.length >= 3, `parcours ${p.id} complet`);
+  for (const e of p.etapes) {
+    verifier(e.titre && e.texte && e.outils.length >= 1, `parcours ${p.id} : étape « ${e.titre} » complète`);
+    for (const id of e.outils) verifier(ids.has(id), `parcours ${p.id} : outil « ${id} » présent dans le catalogue`);
+  }
+}
+
+verifier(catalogue.outils.length >= 1000, `au moins 1000 outils (${catalogue.outils.length})`);
+verifier(catalogue.outils.filter((o) => o.video).length >= 30, "au moins 30 fiches techniques vidéo");
+verifier(R.filtrer(catalogue.outils, { video: true, prix: ["gratuit"] }).length >= 5, "au moins 5 générateurs vidéo entièrement gratuits");
+verifier(R.filtrer(catalogue.outils, { prix: ["gratuit"] }).length >= 40, "au moins 40 outils entièrement gratuits");
+
+/* ------------------------------------------------------------------ */
+/* Normalisation                                                       */
+/* ------------------------------------------------------------------ */
+
+verifier(R.normaliser("Éléphant à l'École !") === "elephant a l ecole", "normalisation des accents et apostrophes");
+verifier(R.normaliser("Cœur") === "coeur", "ligature œ");
+verifier(R.racine("vidéos".normalize("NFD").replace(/[̀-ͯ]/g, "")) === "video", "vidéos → video");
+verifier(R.racine("images") === R.racine("image"), "image / images");
+verifier(R.racine("jeux") === R.racine("jeu") || R.racine("jeux") === "jeu", "jeu / jeux");
+verifier(R.racine("animer") === R.racine("animation"), "animer / animation");
+verifier(R.racine("sites") === R.racine("site"), "site / sites");
+verifier(R.distance("chatgtp", "chatgpt", 1) === 1, "inversion de lettres = 1 faute");
+verifier(R.intentions("une IA gratuite sans inscription").gratuit === true, "intention gratuit");
+verifier(R.intentions("une IA gratuite sans inscription").sanscompte === true, "intention sans compte");
+verifier(R.intentions("sur mon téléphone").android === true, "intention téléphone");
+verifier(R.intentions("une vidéo rapide").rapide === true, "intention rapide");
+
+/* ------------------------------------------------------------------ */
+/* Pertinence                                                          */
+/* ------------------------------------------------------------------ */
+
+const index = R.creerIndex(catalogue);
+
+function rang(requete, id) {
+  const r = R.chercher(index, requete).resultats;
+  const i = r.findIndex((x) => x.outil.id === id);
+  return i < 0 ? Infinity : i + 1;
+}
+
+function attendu(requete, attendus, max) {
+  const r = R.chercher(index, requete).resultats.slice(0, max).map((x) => x.outil.id);
+  const trouve = attendus.some((id) => r.includes(id));
+  verifier(trouve, `« ${requete} » : ${attendus.join(" ou ")} dans les ${max} premiers (obtenu : ${r.join(", ")})`);
+}
+
+function categorie(requete, id) {
+  const c = R.chercher(index, requete).categorie;
+  verifier(c === id, `« ${requete} » : catégorie ${id} (obtenu : ${c})`);
+}
+
+verifier(rang("chatgpt", "chatgpt") === 1, "chatgpt en premier");
+verifier(rang("Chat GPT", "chatgpt") === 1, "« Chat GPT » → ChatGPT");
+verifier(rang("chatgtp", "chatgpt") === 1, "faute de frappe « chatgtp »");
+verifier(rang("mid journey", "midjourney") === 1, "« mid journey » → Midjourney");
+verifier(rang("eleven labs", "elevenlabs") === 1, "« eleven labs » → ElevenLabs");
+verifier(rang("mistral", "lechat") === 1, "« mistral » → Le Chat");
+verifier(rang("capcut", "capcut") === 1, "capcut en premier");
+verifier(rang("suno", "suno") === 1, "suno en premier");
+verifier(rang("kling", "kling") === 1, "kling en premier");
+
+attendu("je veux enlever le fond d'une photo", ["removebg", "photoroom", "pixelcut", "clipdrop"], 3);
+attendu("créer une chanson", ["suno", "udio"], 2);
+attendu("faire une vidéo avec l'IA", ["kling", "flow", "sora", "runway", "dreamina", "hailuo"], 5);
+attendu("traduire un document pdf", ["deepl"], 3);
+attendu("réviser mon bac", ["notebooklm", "knowunity", "quizlet"], 5);
+attendu("exercice de maths", ["photomath", "gauth", "wolframalpha"], 3);
+attendu("sous-titres pour tiktok", ["capcut", "submagic", "captions"], 3);
+attendu("IA sans internet sur mon téléphone android", ["aiedge", "pocketpal"], 3);
+attendu("transcrire une réunion", ["otter", "fathom", "notta", "fireflies", "tldv", "noota"], 4);
+attendu("voix off", ["elevenlabs", "murf"], 3);
+attendu("faire mon cv", ["kickresume", "teal"], 3);
+attendu("créer un site web sans coder", ["lovable", "wix", "framer", "durable", "bolt", "v0"], 4);
+attendu("agrandir une image en 4k", ["upscayl", "topaz", "magnific", "letsenhance", "krea"], 5);
+attendu("faire un logo", ["looka", "recraft", "ideogram", "canva", "kittl"], 4);
+attendu("présentation powerpoint", ["gamma", "m365copilot", "beautifulai", "pitch"], 3);
+attendu("générer des images gratuitement", ["perchance", "craiyon", "bing-create", "whisk"], 4);
+attendu("séparer la voix d'une musique", ["lalal", "moises", "uvr"], 3);
+attendu("restaurer une vieille photo floue", ["remini", "letsenhance", "topaz"], 4);
+attendu("modèle 3d pour imprimante", ["meshy", "tripo", "polycam"], 4);
+attendu("détecter un texte écrit par chatgpt", ["gptzero", "compilatio"], 3);
+attendu("faire parler une photo", ["did", "hedra", "heygen"], 4);
+attendu("programmer en python", ["cursor", "ghcopilot", "claudecode", "codex", "windsurf"], 5);
+attendu("automatiser mes tâches", ["zapier", "make", "n8n"], 4);
+attendu("vendre sur vinted", ["photoroom"], 3);
+attendu("chatbot anonyme sans compte", ["duckai", "lumo"], 3);
+attendu("musique libre de droits pour youtube", ["mubert", "soundraw", "stableaudio"], 4);
+attendu("apprendre l'anglais", ["duolingo", "speak"], 4);
+attendu("faire une vidéo", ["kling", "runway", "sora", "flow", "veo", "hailuo"], 3);
+attendu("générateur vidéo rapide", ["pixverse", "vidu", "dreamina", "ltx"], 3);
+const rapides = R.chercher(index, "vidéo IA gratuite et rapide").resultats.slice(0, 5).filter((r) => r.outil.video);
+verifier(rapides.length >= 3 && rapides.every((r) => r.outil.video.v !== "lente"), `« vidéo IA gratuite et rapide » : aucun générateur lent en tête (${rapides.map((r) => r.outil.id)})`);
+attendu("générateur de vidéo gratuit", ["kling", "pixverse", "vidu", "dreamina", "hailuo", "framepack", "wan2gp"], 3);
+attendu("animer une photo", ["kling", "deepnostalgia", "midjourney", "dreamina", "hailuo", "pixverse"], 3);
+attendu("créer une chanson gratuitement", ["suno", "udio", "aisongmaker"], 3);
+attendu("identifier une plante", ["plantnet", "picturethis"], 3);
+attendu("éditer un pdf gratuit", ["pdfgear"], 5);
+
+categorie("enlever le fond d'une photo", "retouche");
+categorie("faire une vidéo", "video");
+categorie("créer une chanson", "musique");
+categorie("réviser un examen", "etudes");
+categorie("faire mon cv", "emploi");
+categorie("vidéo IA gratuite", "video");
+categorie("chanson", "musique");
+
+verifier(R.chercher(index, "").resultats.length === 0, "requête vide → aucun résultat");
+verifier(R.chercher(index, "le la les de").resultats.length === 0, "uniquement des mots vides → aucun résultat");
+verifier(R.chercher(index, "zzqxw").resultats.length === 0, "charabia → aucun résultat");
+
+const gratuits = R.chercher(index, "logo gratuit").resultats.slice(0, 5);
+verifier(gratuits.every((r) => r.outil.prix !== "payant"), "« logo gratuit » : aucun outil payant dans le top 5");
+
+const t0 = Date.now();
+for (let i = 0; i < 50; i++) R.chercher(index, "je cherche une ia pour enlever le fond de mes photos");
+const ms = (Date.now() - t0) / 50;
+verifier(ms < 25, `recherche rapide (${ms.toFixed(1)} ms)`);
+
+/* ------------------------------------------------------------------ */
+/* Studio (montage et générateurs, sans réseau)                        */
+/* ------------------------------------------------------------------ */
+
+const vm = require("vm");
+function charger(fichier, globaux) {
+  const ctx = Object.assign({ console, setTimeout, clearTimeout }, globaux || {});
+  ctx.window = ctx;
+  vm.createContext(ctx);
+  vm.runInContext(fs.readFileSync(path.join(WEB, "js", fichier), "utf8"), ctx, { filename: fichier });
+  return ctx;
+}
+const Mo = charger("montage.js").Montage;
+const Ge = charger("generateurs.js", { Natif: {} }).Generateurs;
+const ch = Mo.chronologie([{ duree: 4 }, { duree: 3 }, { duree: 5 }]);
+verifier(Math.abs(ch.total - (12 - 2 * Mo.TRANSITION)) < 1e-9, "montage : durée totale avec fondus enchaînés");
+verifier(ch.plages[1].debut === 4 - Mo.TRANSITION && ch.plages[2].fin === ch.total, "montage : scènes qui se chevauchent le temps du fondu");
+for (const [k, f] of Object.entries(Mo.FORMATS)) {
+  verifier(f.iw * f.ih <= 768 * 768 && f.iw % 64 === 0 && f.ih % 64 === 0, `format ${k} : taille d'image acceptée par Pollinations (${f.iw}×${f.ih})`);
+  verifier(Math.abs(f.iw / f.ih - f.w / f.h) < 0.01, `format ${k} : images aux proportions de la vidéo`);
+  const [w, h] = Ge.tailleHorde(f.iw, f.ih);
+  verifier(w * h <= 721 * 721 && w % 64 === 0 && h % 64 === 0, `format ${k} : taille acceptée par AI Horde sans compte (${w}×${h})`);
+  const d = Ge.CLIPS[0].data({ prompt: "p", image: "https://x/y.jpg", largeur: f.iw, hauteur: f.ih });
+  verifier(d[4] % 32 === 0 && d[5] % 32 === 0 && Math.abs(d[5] / d[4] - f.w / f.h) < 0.08, `format ${k} : dimensions LTX-Video multiples de 32 (${d[5]}×${d[4]})`);
+}
+const local = Ge.scenarioLocal("Un chat se réveille. Il part en voyage.", 4);
+verifier(local.scenes.length === 4 && local.scenes[0].texte === "Un chat se réveille." && local.scenes[1].texte === "Il part en voyage.", "scénario hors ligne : une phrase par scène");
+verifier(new Set(local.scenes.map((x) => x.prompt)).size === 4, "scénario hors ligne : cadrages différents");
+verifier(Ge.urlPollinations({ prompt: "a fox", largeur: 576, hauteur: 1024, seed: 3 }) === "https://image.pollinations.ai/prompt/a%20fox?width=576&height=1024&seed=3&safe=true", "adresse d'image Pollinations");
+verifier(Object.keys(Mo.AMBIANCES).length >= 6 && Mo.AMBIANCES.aucune && !Mo.AMBIANCES.aucune.bpm, "ambiances musicales, dont « sans musique »");
+
+console.log(`${ok} vérifications réussies, ${ko} échec(s) — ${catalogue.outils.length} outils, ${catalogue.categories.length} catégories, ${catalogue.parcours.length} parcours`);
+process.exit(ko ? 1 : 0);
