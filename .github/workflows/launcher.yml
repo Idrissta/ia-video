@@ -1,0 +1,103 @@
+name: APK Craft Apps
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - "launcher/**"
+      - ".github/workflows/launcher.yml"
+      - "settings.gradle.kts"
+      - "build.gradle.kts"
+      - "gradle/**"
+  pull_request:
+    paths:
+      - "launcher/**"
+      - ".github/workflows/launcher.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: launcher-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Compiler Craft Apps
+    runs-on: ubuntu-latest
+    env:
+      # Secrets facultatifs pour signer avec votre propre clé (voir README).
+      KEYSTORE_B64: ${{ secrets.NOVA_KEYSTORE_BASE64 }}
+      NOVA_KEYSTORE_PASSWORD: ${{ secrets.NOVA_KEYSTORE_PASSWORD }}
+      NOVA_KEY_ALIAS: ${{ secrets.NOVA_KEY_ALIAS }}
+      NOVA_KEY_PASSWORD: ${{ secrets.NOVA_KEY_PASSWORD }}
+      NOVA_VERSION_CODE: ${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Fichiers web embarqués
+        run: |
+          W=launcher/src/main/assets/web
+          test -f "$W/index.html"
+          for f in $(grep -oE "\./[A-Za-z0-9_./-]+\.(js|wasm|png)" "$W/index.html" | sort -u); do
+            test -s "$W/$f" || { echo "Manque $W/$f (référencé par index.html)"; exit 1; }
+          done
+          for f in $(find "$W" -name "*.js"); do node --check "$f"; done
+          ls -la "$W"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Clé de signature personnelle
+        if: ${{ env.KEYSTORE_B64 != '' }}
+        run: |
+          echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.keystore"
+          echo "NOVA_KEYSTORE=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
+
+      - name: Compiler l'APK
+        run: ./gradlew --no-daemon :launcher:assembleRelease
+
+      - name: Vérifier la signature et le manifeste
+        run: |
+          BT="$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)"
+          APK=launcher/build/outputs/apk/release/launcher-release.apk
+          echo "== $APK ($(du -h "$APK" | cut -f1))"
+          "$BT/apksigner" verify --verbose --print-certs "$APK"
+          "$BT/aapt2" dump badging "$APK" | grep -E "^(package|sdkVersion|targetSdkVersion|application-label|launchable-activity|uses-permission)"
+          # Le .wasm doit être stocké sans compression (chargement direct depuis l'APK).
+          unzip -v "$APK" | grep -E "assets/web/.*_bg\.wasm" | grep -q Stored
+
+      - name: Préparer le fichier
+        run: |
+          mkdir -p dist
+          cp launcher/build/outputs/apk/release/launcher-release.apk "dist/CraftApps-0.13.0.${{ github.run_number }}.apk"
+          ls -la dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CraftApps-apk
+          path: dist/*.apk
+          if-no-files-found: error
+
+      # Lien fixe, toujours à jour, à ouvrir depuis le téléphone :
+      # https://github.com/<propriétaire>/<dépôt>/releases/download/craftapps-latest/CraftApps.apk
+      - name: Mettre à jour la version « craftapps-latest »
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/heads/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp dist/CraftApps-0.13.0.*.apk dist/CraftApps.apk
+          gh release delete craftapps-latest --yes --cleanup-tag --repo "$GITHUB_REPOSITORY" || true
+          gh release create craftapps-latest dist/CraftApps.apk \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease \
+            --title "Craft Apps — dernière version (${GITHUB_REF_NAME} · ${GITHUB_SHA::7})" \
+            --notes "Craft Apps : ArtCraft Launcher 0.13.0 (version web, Rust + egui en WebAssembly) dans une appli Android. Catalogue de la Craft App Suite avec la dernière version de chaque appli, ses notes de version et ses captures, en français. Les applis Craft sont des logiciels pour ordinateur : depuis le téléphone, on consulte le catalogue et on ouvre les pages de téléchargement. Android 8.0 ou plus récent."

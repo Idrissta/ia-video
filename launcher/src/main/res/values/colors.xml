@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Fonds de la page web embarquée (index.html), clair puis sombre. -->
+    <color name="page_bg">#FFF2F1EE</color>
+    <color name="icon_bg">#FF1B1D22</color>
+    <color name="icon_tile">#FFF2F1EE</color>
+    <color name="icon_accent">#FFD69E2E</color>
+</resources>

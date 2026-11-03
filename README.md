@@ -6,6 +6,7 @@ Ce dépôt contient deux applications Android compilées automatiquement par Git
 | --- | --- | --- |
 | **CINÉ-GENESIS** | `film/` | Studio de création IA : images 4K, vidéos 4K (Kling 3.0, LTX-2.3, Veo 3.1…) et films complets montés en 4K sur le téléphone. |
 | **Nova Graph** | `app/` | Calculatrice graphique hors ligne. |
+| **Craft Apps** | `launcher/` | ArtCraft Launcher (Rust + egui en WebAssembly) sur Android : catalogue de la Craft App Suite. |
 
 ## Télécharger les APK
 
@@ -14,6 +15,8 @@ Ce dépôt contient deux applications Android compilées automatiquement par Git
 
 - `CineGenesis.apk` — `https://github.com/Idrissta/ia-video/releases/download/apk-latest/CineGenesis.apk`
 - `NovaGraph.apk` — `https://github.com/Idrissta/ia-video/releases/download/apk-latest/NovaGraph.apk`
+- `CraftApps.apk` — `https://github.com/Idrissta/ia-video/releases/download/craftapps-latest/CraftApps.apk`
+  (workflow à part, **APK Craft Apps**, lancé quand `launcher/` change)
 
 Ouvrez le lien depuis le téléphone, puis le fichier `.apk`, et autorisez l'installation depuis cette source si Android le demande
 (Android 8.0 ou plus récent). Les APK sont aussi disponibles comme artefacts de chaque exécution (onglet **Actions**),
@@ -174,3 +177,44 @@ python3 -m http.server 8000 -d app/src/main/assets/web
 ```bash
 node tools/test-math.js   # tests du moteur mathématique (aussi lancés par la CI)
 ```
+
+---
+
+# Craft Apps — ArtCraft Launcher sur Android
+
+[ArtCraft Launcher](https://github.com/storytold/craft-launcher) 0.13.0 est écrit en Rust avec egui.
+Sa version web, compilée en WebAssembly, tourne ici dans une coque Android (`launcher/`), sur le
+même principe que Nova Graph : les fichiers sont servis depuis les assets de l'APK, sous une origine
+https locale.
+
+- **Ce qu'on y trouve** : la liste des applis Craft (PhotoCraft, FilmCraft, SoundCraft…) avec la
+  dernière version de chacune, sa date, ses notes de version et ses captures d'écran, en français,
+  avec recherche, tri, vue grille ou tableau, thème clair ou sombre.
+- **Ce qu'on n'y trouve pas** : l'installation des applis. Ce sont des logiciels pour ordinateur
+  (macOS, Windows, Linux) ; sur le téléphone elles apparaissent « Indisponible ici », et les liens
+  GitHub s'ouvrent dans le navigateur.
+- **Réseau** : seuls `api.github.com` (versions) et `raw.githubusercontent.com` (captures) sont
+  contactés. Sans compte, GitHub autorise 60 requêtes par heure et par adresse IP, et chaque
+  vérification en fait une par appli : au-delà de trois ouvertures par heure environ, l'appli
+  l'indique et réessaie plus tard.
+- **Nom et icône** : le nom et le logo ArtCraft sont des marques déposées, exclues de la licence
+  MIT/Apache-2.0 (voir `assets/web/NOTICE`). L'appli s'appelle donc « Craft Apps » et a sa propre
+  icône ; la page web embarquée reste celle du projet.
+
+### Recompiler les fichiers web
+
+`launcher/src/main/assets/web` contient le résultat de `trunk build` sur
+`apps/artcraft-launcher-web` d'ArtCraft Launcher 0.13.0, avec un seul changement
+(`launcher/web-src/android.patch`) : l'alerte « nouvelle version d'ArtCraft Launcher » est retirée,
+car son bouton télécharge un installeur pour ordinateur.
+
+```sh
+# Dans les sources d'ArtCraft Launcher 0.13.0 (Rust 1.95 ou plus récent)
+patch -p0 < /chemin/vers/ia-video/launcher/web-src/android.patch
+rustup target add wasm32-unknown-unknown
+cd apps/artcraft-launcher-web
+trunk build --release --cargo-profile wasm-release   # résultat dans ../../dist/web
+```
+
+Copiez ensuite le contenu de `dist/web` dans `launcher/src/main/assets/web` (en gardant
+`LICENSE-MIT`, `LICENSE-APACHE` et `NOTICE`).
